@@ -1,0 +1,5 @@
+{
+    "report_name" : "QC.pdf",
+    "align_timestamps_to" : "local",
+    "original_timestamp_filename" : "original_timestamps.npy"
+}

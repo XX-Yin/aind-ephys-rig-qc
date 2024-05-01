@@ -14,8 +14,15 @@ from aind_ephys_rig_qc import __version__ as package_version
 from aind_ephys_rig_qc.pdf_utils import PdfReport
 from aind_ephys_rig_qc.qc_figures import plot_power_spectrum, plot_raw_data
 
+from aind_ephys_rig_qc.temporal_alignment import align_timestamps
 
-def generate_qc_report(directory, report_name="QC.pdf"):
+
+def generate_qc_report(
+    directory,
+    report_name="QC.pdf",
+    timestamp_alignment_method="local",
+    original_timestamp_filename="original_timestamps.npy",
+):
     """
     Generates a PDF report from an Open Ephys data directory
 
@@ -27,6 +34,13 @@ def generate_qc_report(directory, report_name="QC.pdf"):
         The path to the Open Ephys data directory
     report_name : str
         The name of the PDF report
+    timestamp_alignment_method : str
+        The type of alignment to perform
+        Option 1: 'local' (default)
+        Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
+        Option 3: 'none' (don't align timestamps)
+    original_timestamp_filename : str
+        The name of the file for archiving the original timestamps
 
     """
 
@@ -39,6 +53,27 @@ def generate_qc_report(directory, report_name="QC.pdf"):
     pdf.set_font("Helvetica", "", size=10)
     pdf.set_y(45)
     pdf.embed_table(get_stream_info(directory), width=pdf.epw)
+
+    if (
+        timestamp_alignment_method == "local"
+        or timestamp_alignment_method == "harp"
+    ):
+        # perform local alignment first in either case
+        align_timestamps(
+            directory,
+            align_timestamps_to=timestamp_alignment_method,
+            original_timestamp_filename=original_timestamp_filename,
+            pdf=pdf,
+        )
+
+        if timestamp_alignment_method == "harp":
+            # optionally align to Harp timestamps
+            align_timestamps(
+                directory,
+                align_timestamps_to=timestamp_alignment_method,
+                original_timestamp_filename=original_timestamp_filename,
+                pdf=pdf,
+            )
 
     create_qc_plots(pdf, directory)
 

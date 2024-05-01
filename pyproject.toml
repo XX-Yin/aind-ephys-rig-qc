@@ -21,7 +21,8 @@ dependencies = [
     'matplotlib',
     'fpdf2',
     'scipy',
-    'rich'
+    'rich',
+    'harp-python'
 ]
 
 [project.optional-dependencies]

@@ -6,6 +6,9 @@ import json
 import os
 import sys
 
+from open_ephys.analysis import Session
+from harp.clock import decode_harp_clock, align_timestamps_to_anchor_points
+from matplotlib.figure import Figure
 import numpy as np
 
 
@@ -13,9 +16,10 @@ def align_timestamps(
     directory,
     align_timestamps_to="local",
     original_timestamp_filename="original_timestamps.npy",
+    pdf=None,
 ):
     """
-    Aligns timestamps across multiple streams
+    Aligns timestamps across multiple Open Ephys data streams
 
     Parameters
     ----------
@@ -27,244 +31,131 @@ def align_timestamps(
         Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
+    qc_report : PdfReport
+        Report for adding QC figures (optional)
     """
 
-    return None
+    session = Session(directory)
 
+    local_sync_line = 1
+    main_stream_index = 0
 
-def get_num_barcodes(harp_events, delta_time=0.5):
-    """
-    Returns the number of barcodes
+    for recordnode in session.recordnodes:
 
-    Parameter
-    ---------
-    harp_events : pd.DataFrame
-        Events dataframe from open ephys tools
-    delta_time : float
-        The time difference between barcodes
+        current_record_node = os.path.basename(recordnode.directory).split(
+            "Record Node "
+        )[1]
 
-    Returns
-    -------
-    numbarcodes : int
-        The number of barcodes in the recordings
-    """
-    (splits,) = np.where(np.diff(harp_events.timestamp) > delta_time)
-    return len(splits) - 1
+        for recording in recordnode.recordings:
 
+            current_experiment_index = recording.experiment_index
+            current_recording_index = recording.recording_index
 
-def get_barcode(harp_events, index, delta_time=0.5):
-    """
-    Returns a subset of original DataFrame corresponding to a specific
-    barcode
+            if pdf is not None:
+                pdf.add_page()
+                pdf.set_font("Helvetica", "B", size=12)
+                pdf.set_y(30)
+                pdf.write(
+                    h=12,
+                    text=f"Temporal alignment of Record Node {current_record_node}, Experiment {current_experiment_index}, Recording {current_recording_index}",
+                )
+                fig = Figure(figsize=(10, 4))
+                ax1, ax2 = fig.subplots(nrows=1, ncols=2)
 
-    Parameter
-    ---------
-    harp_events : pd.DataFrame
-        Events dataframe from open ephys tools
-    index : int
-        The index of the barcode being requested
-    delta_time : float
-        The time difference between barcodes
+            events = recording.events
 
-    Returns
-    -------
-    sample_numbers : np.array
-        Array of integer sample numbers for each barcode event
-    states : np.array
-        Array of states (1 or 0) for each barcode event
+            main_stream = recording.continuous[main_stream_index]
 
-    """
-    (splits,) = np.where(np.diff(harp_events.timestamp) > delta_time)
+            main_stream_name = main_stream.metadata["stream_name"]
+            main_stream_source_node_id = main_stream.metadata["source_node_id"]
+            main_stream_sample_rate = main_stream.metadata["sample_rate"]
 
-    barcode = harp_events.iloc[splits[index] + 1:splits[index + 1] + 1]
+            main_stream_events = events[
+                (events.stream_name == main_stream_name)
+                & (events.processor_id == main_stream_source_node_id)
+                & (events.line == local_sync_line)
+                & (events.state == 1)
+            ]
 
-    return barcode.sample_number.values, barcode.state.values
-
-
-def convert_barcode_to_time(
-    sample_numbers, states, baud_rate=1000.0, sample_rate=30000.0
-):
-    """
-    Converts event sample numbers and states to
-    a Harp timestamp in seconds.
-
-    Harp timestamp is encoded as 32 bits, with
-    the least significant bit coming first, and 2 bits
-    between each byte.
-    """
-
-    samples_per_bit = int(sample_rate / baud_rate)
-    middle_sample = int(samples_per_bit / 2)
-
-    intervals = np.diff(sample_numbers)
-
-    barcode = np.concatenate(
-        [
-            np.ones((count,)) * state
-            for state, count in zip(states[:-1], intervals)
-        ]
-    ).astype("int")
-
-    val = np.concatenate(
-        [
-            np.arange(
-                samples_per_bit + middle_sample + samples_per_bit * 10 * i,
-                samples_per_bit * 10 * i
-                - middle_sample
-                + samples_per_bit * 10,
-                samples_per_bit,
+            main_stream_times = (
+                main_stream_events.sample_number.values
+                / main_stream_sample_rate
             )
-            for i in range(4)
-        ]
-    )
-    s = np.flip(barcode[val])
-    harp_time = s.dot(2 ** np.arange(s.size)[::-1])
+            main_stream_times = (
+                main_stream_times - main_stream_times[0]
+            )  # start at 0
 
-    return harp_time
+            print(
+                f"Total events for {main_stream_name}: {len(main_stream_events)}"
+            )
 
+            for stream_idx, stream in enumerate(recording.continuous):
 
-def rescale_times_linear(times_ephys, harp_events, delta_time=0.5):
-    """
-    Applies a linear rescaling to the ephys timestamps
-    based on the HARP timestamps.
+                if stream_idx != main_stream_index:
 
-    Parameters
-    ----------
-    times_ephys : np.array
-        Array with the ephys timestamps
-    harp_events : pd.DataFrame
-        Events dataframe from open ephys tools
-    delta_time : float
-        The time difference between barcodes
+                    stream_name = stream.metadata["stream_name"]
+                    source_node_id = stream.metadata["source_node_id"]
+                    sample_rate = stream.metadata["sample_rate"]
 
-    Returns
-    -------
-    new_times : np.array
-        Rescaled ephys timestamps
-    """
-    splits = np.where(np.diff(harp_events.timestamp) > delta_time)[0]
-    last_index = len(splits) - 2
+                    events_for_stream = events[
+                        (events.stream_name == stream_name)
+                        & (events.processor_id == source_node_id)
+                        & (events.line == local_sync_line)
+                        & (events.state == 1)
+                    ]
 
-    t1_ephys = (
-        harp_events.iloc[splits[0] + 1:splits[1] + 1].iloc[0].timestamp
-    )
-    t2_ephys = (
-        harp_events.iloc[splits[last_index] + 1:splits[last_index + 1] + 1]
-        .iloc[0]
-        .timestamp
-    )
+                    print(
+                        f"Total events for {stream_name}: {len(events_for_stream)}"
+                    )
 
-    sample_numbers, states = get_barcode(harp_events, 0)
-    t1_harp = convert_barcode_to_time(sample_numbers, states)
-    sample_numbers, states = get_barcode(harp_events, last_index)
-    t2_harp = convert_barcode_to_time(sample_numbers, states)
+                    if pdf is not None:
+                        
+                        ax1.plot(
+                            (
+                                np.diff(events_for_stream.timestamp)
+                                - np.diff(main_stream_events.timestamp)
+                            )
+                            * 1000,
+                            label=(stream_name),
+                            linewidth=0.1,
+                        )
+                        ax1.set_ylim([-1.5, 1.5])
 
-    new_times = np.copy(times_ephys)
-    scaling = (t2_harp - t1_harp) / (t2_ephys - t1_ephys)
-    new_times -= t1_ephys
-    new_times *= scaling
-    new_times += t1_harp
+                    assert len(main_stream_events) == len(events_for_stream)
 
-    return new_times
+                    local_stream_times = (
+                        events_for_stream.sample_number.values / sample_rate
+                    )
 
+                    ts = align_timestamps_to_anchor_points(
+                        local_stream_times,
+                        local_stream_times,
+                        main_stream_times,
+                    )
 
-def compute_ephys_harp_times(
-    times_ephys,
-    harp_events,
-    fs=30_000,
-    delta_time=0.5,
-    wrong_decoded_delta_time=2,
-):
-    """
-    Computes ephys timestamps assuming that they are uniformly samples
-    between barcodes. The times_ephys are only used to get the
-    number of samples.
+                    # write the new timestamps .npy files
 
-    Parameters
-    ----------
-    times_ephys : np.array
-        Array with the ephys timestamps
-    harp_events : pd.DataFrame
-        Events dataframe from open ephys tools
-    delta_time : float
-        The time difference between barcodes
-    wrong_decoded_delta_time : float
-        The time difference threshold between barcodes to detect a wrong
-        decoding and fit the barcode time
+                    if pdf is not None:
+                        ax2.plot(
+                            (np.diff(ts) - np.diff(main_stream_times)) * 1000,
+                            label=stream_name,
+                            linewidth=1,
+                        )
+                        ax2.set_ylim([-1.5, 1.5])
 
-    Returns
-    -------
-    new_times : np.array
-        Rescaled ephys timestamps
-    """
-    sampling_period = 1 / fs
+            if pdf is not None:
+                ax1.set_title("Original alignment")
+                ax1.set_xlabel("Event number")
+                ax1.set_ylabel("Time interval (ms)")
+                ax1.legend()
 
-    # compute all barcode times
-    num_harp_events = get_num_barcodes(harp_events, delta_time=delta_time)
-    timestamps_harp = np.zeros(num_harp_events, dtype="float64")
-    for i in range(num_harp_events):
-        sample_numbers, states = get_barcode(
-            harp_events, i, delta_time=delta_time
-        )
-        barcode_harp_time = convert_barcode_to_time(sample_numbers, states)
-        timestamps_harp[i] = barcode_harp_time
+                ax2.set_title("After local alignment")
+                ax2.set_xlabel("Event number")
+                ax2.set_ylabel("Time interval (ms)")
+                ax2.legend()
 
-    # fix any wrong decoding
-    (wrong_decoded_idxs,) = np.where(
-        (np.diff(timestamps_harp)) > wrong_decoded_delta_time
-    )
-    print(f"Found {len(wrong_decoded_idxs)} badly aligned timestamps")
-    timestamps_harp[wrong_decoded_idxs + 1]
-    for idx in wrong_decoded_idxs + 1:
-        new_ts = (
-            timestamps_harp[idx - 1]
-            + (timestamps_harp[idx + 1] - timestamps_harp[idx - 1]) / 2
-        )
-        timestamps_harp[idx] = new_ts
-
-    # get indices of harp clock in ephys timestamps
-    (splits,) = np.where(np.diff(harp_events.timestamp) > delta_time)
-    harp_clock_indices = np.searchsorted(
-        times_ephys, harp_events.timestamp.values[splits[:-1] + 1]
-    )
-
-    # compute new ephys times
-    times_ephys_aligned = np.zeros_like(times_ephys, dtype="float64")
-
-    # here we use the BARCODE as a metronome and assume that ephys
-    # is uniformly sampled in between HARP beats
-    for i, (t_harp, harp_idx) in enumerate(
-        zip(timestamps_harp, harp_clock_indices)
-    ):
-        if i == 0:
-            first_sample = 0
-            num_samples = harp_idx
-            # fill in other chunks
-            sample_indices = np.arange(num_samples)
-            t_start = t_harp - len(sample_indices) / fs
-        else:
-            first_sample = harp_clock_indices[i - 1]
-            num_samples = harp_idx - harp_clock_indices[i - 1]
-            t_start = timestamps_harp[i - 1]
-
-        # fill in other chunks
-        sample_indices = np.arange(num_samples)
-        if i != 0:
-            t_start = timestamps_harp[i - 1]
-        else:
-            t_start = t_harp - len(sample_indices) / fs
-        t_stop = t_harp - sampling_period
-        times_ephys_aligned[first_sample:harp_idx] = np.linspace(
-            t_start, t_stop, num_samples
-        )
-
-    # take care of last chunk
-    num_samples = len(times_ephys_aligned) - harp_idx
-    t_start = times_ephys_aligned[harp_idx - 1] + sampling_period
-    t_stop = t_start + num_samples / fs
-    times_ephys_aligned[harp_idx:] = np.linspace(t_start, t_stop, num_samples)
-
-    return times_ephys_aligned
+                pdf.set_y(40)
+                pdf.embed_figure(fig)
 
 
 if __name__ == "__main__":

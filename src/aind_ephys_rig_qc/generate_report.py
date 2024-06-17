@@ -12,7 +12,11 @@ from open_ephys.analysis import Session
 
 from aind_ephys_rig_qc import __version__ as package_version
 from aind_ephys_rig_qc.pdf_utils import PdfReport
-from aind_ephys_rig_qc.qc_figures import plot_power_spectrum, plot_raw_data
+from aind_ephys_rig_qc.qc_figures import (
+    plot_power_spectrum,
+    plot_raw_data,
+    plot_drift,
+)
 
 from aind_ephys_rig_qc.temporal_alignment import align_timestamps
 
@@ -269,6 +273,16 @@ def create_qc_plots(pdf, directory):
                         stream_name,
                     )
                 )
+
+                if "Probe" in stream_name and "LFP" not in stream_name:
+                    pdf.set_y(200)
+                    pdf.embed_figure(plot_drift(directory, stream_name))
+            # pdf.set_y(200)
+            # pdf.embed_figure(
+            #     plot_timealign(
+            #         recording
+            #     )
+            # )
 
 
 if __name__ == "__main__":

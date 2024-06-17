@@ -11,10 +11,7 @@ class TestGenerateReport(unittest.TestCase):
 
     def test_generate_report(self):
         """Example of how to test the truth of a statement."""
-
-        generate_qc_report("", "qc.pdf")
-        self.assertTrue(os.path.exists("qc.pdf"))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        directory = "F:/npOptoRecordings/691894_2023-10-04_18-03-13"
+        report_name = "qc.pdf"
+        generate_qc_report(directory, report_name)
+        self.assertTrue(os.path.exists(os.path.join(directory, report_name)))

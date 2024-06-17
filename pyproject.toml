@@ -23,6 +23,7 @@ dependencies = [
     'scipy',
     'rich',
     'harp-python'
+    "harp-python@git+<https://github.com/jsiegle/harp-python>#egg=<decode-clock>"
 ]
 
 [project.optional-dependencies]

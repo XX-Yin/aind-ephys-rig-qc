@@ -278,10 +278,7 @@ if __name__ == "__main__":
         print(" 1. A data directory")
         print(" 2. A JSON parameters file")
     else:
-        with open(
-            sys.argv[2],
-            "r",
-        ) as f:
+        with open(sys.argv[2], "r",) as f:
             parameters = json.load(f)
 
         directory = sys.argv[1]

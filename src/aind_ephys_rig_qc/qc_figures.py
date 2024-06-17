@@ -84,7 +84,7 @@ def plot_timealign(streams):
     Parameters
     ----------
     data : streams
-        The recording streams to plot
+        The recording streams to plot, including ProbeA-AP. 
 
     Returns
     -------
@@ -113,7 +113,8 @@ def plot_timealign(streams):
     ax[0].set_ylabel("Time (s)")
 
     """plot time alignment after alignment"""
-    ignore_after_time = stream_time[0][-1] - np.min(stream_time[0])
+    ignore_after_time = stream_time[0][-1] - np.min(stream_time[0]) 
+    # last time in recording - min time
 
     streams.add_sync_line(
         1,  # TTL line number

@@ -42,7 +42,7 @@ def align_timestamps(
 
     for recordnode in session.recordnodes:
 
-        current_record_node = os.path.basename(recordnode.directory).split(
+        curr_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
@@ -57,7 +57,10 @@ def align_timestamps(
                 pdf.set_y(30)
                 pdf.write(
                     h=12,
-                    text=f"Temporal alignment of Record Node {current_record_node}, Experiment {current_experiment_index}, Recording {current_recording_index}",
+                    text=(
+                        f"Temporal alignment of Record Node {curr_record_node},"
+                        f"Experiment {current_experiment_index},"
+                        f"Recording {current_recording_index}"),
                 )
                 fig = Figure(figsize=(10, 4))
                 ax1, ax2 = fig.subplots(nrows=1, ncols=2)

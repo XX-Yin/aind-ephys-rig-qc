@@ -266,13 +266,7 @@ def create_qc_plots(pdf, directory):
                 )
 
                 pdf.set_y(200)
-                pdf.embed_figure(
-                    plot_power_spectrum(
-                        stream.samples,
-                        stream.metadata["sample_rate"],
-                        stream_name,
-                    )
-                )
+                pdf.embed_figure(plot_power_spectrum(directory, stream_name,))
 
                 if "Probe" in stream_name and "LFP" not in stream_name:
                     pdf.set_y(200)

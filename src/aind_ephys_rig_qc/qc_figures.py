@@ -52,7 +52,7 @@ def plot_raw_data(data, sample_rate, stream_name):
     return fig
 
 
-def plot_power_spectrum(data, sample_rate, stream_name):
+def plot_power_spectrum(directory, stream_name, num_chunks=3, chunk_size=1000):
     """
     Plot the power spectrum of the data
 
@@ -70,24 +70,44 @@ def plot_power_spectrum(data, sample_rate, stream_name):
     matplotlib.figure.Figure
         Figure object containing the plot
     """
-
     fig = Figure(figsize=(10, 4))
-    ax = fig.subplots(2, 1, gridspec_kw={"height_ratios": [2, 1]})
+    stream_names, _ = se.get_neo_streams("openephys", directory)
+    target_stream = [
+        curr_stream_name
+        for curr_stream_name in stream_names
+        if stream_name in curr_stream_name
+    ][0]
 
-    subset = data[:1000, :]
-    p_channel = []
-    for i in range(subset.shape[1]):
-        f, p = welch(subset[:, i], fs=sample_rate)
-        ax[1].plot(f, p)
-        p_channel.append(p)
+    recording = se.read_openephys(
+        folder_path=directory, stream_name=target_stream,
+    )
 
-    p_channel = np.array(p_channel)
-    extent = [f.min(), f.max(), subset.shape[1] - 1, 0]
-    ax[0].imshow(p_channel, extent=extent, aspect="auto", cmap="inferno")
-    ax[0].set_ylabel("Channels")
-    ax[0].set_title(f"{stream_name} PSD")
-    ax[1].set_xlabel("Frequency")
-    ax[1].set_ylabel("Power")
+    ax = fig.subplots(
+        2, num_chunks, gridspec_kw={"height_ratios": [2, 1]}, sharex=True
+    )
+    sample_rate = recording.get_sampling_frequency()
+    subsets = si.get_random_data_chunks(
+        recording, num_chunks_per_segment=num_chunks, chunk_size=chunk_size
+    )
+    for chunk_ind in range(num_chunks):
+        subset = subsets[
+            (chunk_ind * chunk_size): ((chunk_ind + 1) * chunk_size), :
+        ]
+        p_channel = []
+        for i in range(subset.shape[1]):
+            f, p = welch(subset[:, i], fs=sample_rate)
+            ax[1, chunk_ind].plot(f, p)
+            p_channel.append(p)
+
+        p_channel = np.array(p_channel)
+        extent = [f.min(), f.max(), subset.shape[1] - 1, 0]
+        ax[0, chunk_ind].imshow(
+            p_channel, extent=extent, aspect="auto", cmap="inferno"
+        )
+        ax[0, chunk_ind].set_ylabel("Channels")
+        ax[0, chunk_ind].set_title(f"{stream_name} PSD")
+        ax[1, chunk_ind].set_xlabel("Frequency")
+        ax[1, chunk_ind].set_ylabel("Power")
 
     return fig
 
@@ -139,7 +159,7 @@ def plot_drift(diretory, stream_name):
     n_skip = visualization_drift_params["n_skip"]
     alpha = visualization_drift_params["alpha"]
 
-    stream_names, stream_ids = se.get_neo_streams("openephys", diretory)
+    stream_names, _ = se.get_neo_streams("openephys", diretory)
     spike_stream = [
         curr_stream_name
         for curr_stream_name in stream_names

@@ -106,27 +106,27 @@ def plot_timealign(streams):
     matplotlib.figure.Figure
         Figure object containing the plot
     """
-
+    '''plot time alignment'''
     fig = Figure(figsize=(10, 4))
     ax = fig.subplots(1, 2)
 
     stream_time = []
     stream_names = []
-    """extract time of data streams"""
+    '''extract time of data streams'''
     for stream_ind in range(len(streams.continuous)):
         stream_time.append(streams.continuous[stream_ind].timestamps)
         stream_names.append(
             streams.continuous[stream_ind].metadata["stream_name"]
         )
 
-    """plot time alignment"""
+    '''plot time alignment'''
     ax[0].plot(stream_time[0], label=stream_names[0])
     ax[0].legend()
     ax[0].set_title("Time Alignment_original")
     ax[0].set_xlabel("Samples")
     ax[0].set_ylabel("Time (s)")
 
-    """plot time alignment after alignment"""
+    '''plot time alignment after alignment'''
     ignore_after_time = stream_time[0][-1] - np.min(stream_time[0])
     # last time in recording - min time
 

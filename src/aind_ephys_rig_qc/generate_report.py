@@ -277,12 +277,6 @@ def create_qc_plots(pdf, directory):
                 if "Probe" in stream_name and "LFP" not in stream_name:
                     pdf.set_y(200)
                     pdf.embed_figure(plot_drift(directory, stream_name))
-            # pdf.set_y(200)
-            # pdf.embed_figure(
-            #     plot_timealign(
-            #         recording
-            #     )
-            # )
 
 
 if __name__ == "__main__":

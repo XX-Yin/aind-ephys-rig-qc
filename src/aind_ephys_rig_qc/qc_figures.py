@@ -72,7 +72,7 @@ def plot_power_spectrum(data, sample_rate, stream_name):
     """
 
     fig = Figure(figsize=(10, 4))
-    ax = fig.subplots(2, 1, gridspec_kw={"height_ratios": [2, 1]})
+    ax = fig.subplots(2, 1, gridspec_kw={"height_ratios": [2, 1]}, sharex=True)
 
     subset = data[:1000, :]
     p_channel = []

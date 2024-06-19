@@ -149,7 +149,7 @@ def plot_drift(diretory, stream_name):
     """ get blocks/experiments and streams info """
     si.set_global_job_kwargs(n_jobs=-1)
 
-    """ drift """
+    """ drift raster"""
     cmap = plt.get_cmap(visualization_drift_params["cmap"])
     norm = Normalize(
         vmin=visualization_drift_params["vmin"],

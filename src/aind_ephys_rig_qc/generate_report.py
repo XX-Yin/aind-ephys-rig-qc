@@ -13,7 +13,6 @@ from open_ephys.analysis import Session
 from aind_ephys_rig_qc import __version__ as package_version
 from aind_ephys_rig_qc.pdf_utils import PdfReport
 from aind_ephys_rig_qc.qc_figures import plot_power_spectrum, plot_raw_data
-
 from aind_ephys_rig_qc.temporal_alignment import align_timestamps
 
 

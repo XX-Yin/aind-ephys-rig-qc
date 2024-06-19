@@ -6,15 +6,18 @@ import json
 import os
 import sys
 
-from open_ephys.analysis import Session
-from harp.clock import decode_harp_clock, align_timestamps_to_anchor_points
-from matplotlib.figure import Figure
 import numpy as np
+from harp.clock import align_timestamps_to_anchor_points
+from matplotlib.figure import Figure
+from open_ephys.analysis import Session
 
 
 def align_timestamps(
     directory,
     align_timestamps_to="local",
+    local_sync_line=1,
+    harp_sync_line=3,
+    main_stream_index=0,
     original_timestamp_filename="original_timestamps.npy",
     pdf=None,
 ):
@@ -29,6 +32,13 @@ def align_timestamps(
         The type of alignment to perform
         Option 1: 'local' (default)
         Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
+    local_sync_line : int
+        The TTL line number for local alignment
+        (assumed to be the same across streams)
+    harp_sync_line : int
+        The NIDAQ TTL line number for Harp alignment
+    main_stream_index : int
+        The index of the main stream for alignment
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
     qc_report : PdfReport
@@ -36,9 +46,6 @@ def align_timestamps(
     """
 
     session = Session(directory)
-
-    local_sync_line = 1
-    main_stream_index = 0
 
     for recordnode in session.recordnodes:
 
@@ -57,7 +64,12 @@ def align_timestamps(
                 pdf.set_y(30)
                 pdf.write(
                     h=12,
-                    text=f"Temporal alignment of Record Node {current_record_node}, Experiment {current_experiment_index}, Recording {current_recording_index}",
+                    text=(
+                        "Temporal alignment of Record Node"
+                        f" {current_record_node}, Experiment"
+                        f" {current_experiment_index}, Recording"
+                        f" {current_recording_index}"
+                    ),
                 )
                 fig = Figure(figsize=(10, 4))
                 ax1, ax2 = fig.subplots(nrows=1, ncols=2)
@@ -86,7 +98,8 @@ def align_timestamps(
             )  # start at 0
 
             print(
-                f"Total events for {main_stream_name}: {len(main_stream_events)}"
+                f"Total events for {main_stream_name}: "
+                f"{len(main_stream_events)}"
             )
 
             for stream_idx, stream in enumerate(recording.continuous):
@@ -105,11 +118,12 @@ def align_timestamps(
                     ]
 
                     print(
-                        f"Total events for {stream_name}: {len(events_for_stream)}"
+                        f"Total events for {stream_name}: "
+                        f"{len(events_for_stream)}"
                     )
 
                     if pdf is not None:
-                        
+
                         ax1.plot(
                             (
                                 np.diff(events_for_stream.timestamp)

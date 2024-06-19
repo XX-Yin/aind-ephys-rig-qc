@@ -5,6 +5,8 @@ Generates a PDF report from an Open Ephys data directory
 import json
 import os
 import sys
+from datetime import datetime
+import io
 
 import numpy as np
 import pandas as pd
@@ -18,7 +20,11 @@ from aind_ephys_rig_qc.qc_figures import (
     plot_drift,
 )
 
-from aind_ephys_rig_qc.temporal_alignment import align_timestamps
+from aind_ephys_rig_qc.temporal_alignment import (
+    align_timestamps,
+    align_timestamps_harp,
+    replace_original_timestamps,
+)
 
 
 def generate_qc_report(
@@ -48,6 +54,9 @@ def generate_qc_report(
 
     """
 
+    output_stream = io.StringIO()
+    sys.stdout = output_stream
+
     pdf = PdfReport("aind-ephys-rig-qc v" + package_version)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", size=12)
@@ -65,23 +74,64 @@ def generate_qc_report(
         # perform local alignment first in either case
         align_timestamps(
             directory,
-            align_timestamps_to=timestamp_alignment_method,
             original_timestamp_filename=original_timestamp_filename,
             pdf=pdf,
         )
+        # check re-aligned timestamps in temporal_alignment.png
+        print(
+            "Please check the local alignment of the timestamps."
+            + "And decide if original timestamps should be overwritten."
+        )
+        overwrite = input("Overwrite original timestamps? (y/n): ")
+
+        if overwrite == "y":
+            replace_original_timestamps(
+                directory,
+                original_timestamp_filename,
+                sync_timestamp_file="localsync_timestamps.npy",
+            )
+            print(
+                "Original timestamps has been overwritten by"
+                + "local-sync timestamps."
+            )
+        else:
+            print("Original timestamps was not overwritten.")
 
         if timestamp_alignment_method == "harp":
             # optionally align to Harp timestamps
-            align_timestamps(
+            align_timestamps_harp(
                 directory,
-                align_timestamps_to=timestamp_alignment_method,
-                original_timestamp_filename=original_timestamp_filename,
                 pdf=pdf,
             )
+
+            # check re-aligned timestamps in temporal_alignment.png
+            print(
+                "Please check the alignment of harp timestamps."
+                + "And decide if local timestamps should be overwritten."
+            )
+            overwrite = input("Overwrite local timestamps? (y/n): ")
+
+            if overwrite == "y":
+                replace_original_timestamps(
+                    directory,
+                    original_timestamp_filename,
+                    sync_timestamp_file="harpsync_timestamps.npy",
+                )
+                print("Local timestamps has been overwritten by harp clock.")
+            else:
+                print("Local timestamps was not overwritten.")
 
     create_qc_plots(pdf, directory)
 
     pdf.output(os.path.join(directory, report_name))
+
+    output_content = output_stream.getvalue()
+
+    outfile = os.path.join(directory, "rigQc_output.txt")
+
+    with open(outfile, "a") as output_file:
+        output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+        output_file.write(output_content)
 
 
 def get_stream_info(directory):
@@ -266,7 +316,12 @@ def create_qc_plots(pdf, directory):
                 )
 
                 pdf.set_y(200)
-                pdf.embed_figure(plot_power_spectrum(directory, stream_name,))
+                pdf.embed_figure(
+                    plot_power_spectrum(
+                        directory,
+                        stream_name,
+                    )
+                )
 
                 if "Probe" in stream_name and "LFP" not in stream_name:
                     pdf.set_y(200)
@@ -280,7 +335,10 @@ if __name__ == "__main__":
         print(" 1. A data directory")
         print(" 2. A JSON parameters file")
     else:
-        with open(sys.argv[2], "r",) as f:
+        with open(
+            sys.argv[2],
+            "r",
+        ) as f:
             parameters = json.load(f)
 
         directory = sys.argv[1]

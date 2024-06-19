@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize
 
+import spikeinterface.preprocessing as spre
 import spikeinterface as si
 import spikeinterface.extractors as se
 from spikeinterface.core.node_pipeline import (
@@ -52,7 +53,9 @@ def plot_raw_data(data, sample_rate, stream_name):
     return fig
 
 
-def plot_power_spectrum(directory, stream_name, num_chunks=3, chunk_size=1000):
+def plot_power_spectrum(
+    directory, stream_name, num_chunks=3, chunk_size=10000
+):
     """
     Plot the power spectrum of the data
 
@@ -79,7 +82,8 @@ def plot_power_spectrum(directory, stream_name, num_chunks=3, chunk_size=1000):
     ][0]
 
     recording = se.read_openephys(
-        folder_path=directory, stream_name=target_stream,
+        folder_path=directory,
+        stream_name=target_stream,
     )
 
     ax = fig.subplots(
@@ -87,12 +91,13 @@ def plot_power_spectrum(directory, stream_name, num_chunks=3, chunk_size=1000):
     )
     sample_rate = recording.get_sampling_frequency()
     subsets = si.get_random_data_chunks(
-        recording, num_chunks_per_segment=num_chunks, chunk_size=chunk_size
+        recording,
+        num_chunks_per_segment=num_chunks,
+        chunk_size=chunk_size,
+        concatenated=False,
     )
     for chunk_ind in range(num_chunks):
-        subset = subsets[
-            (chunk_ind * chunk_size): ((chunk_ind + 1) * chunk_size), :
-        ]
+        subset = subsets[chunk_ind]
         p_channel = []
         for i in range(subset.shape[1]):
             f, p = welch(subset[:, i], fs=sample_rate)
@@ -138,6 +143,8 @@ def plot_drift(diretory, stream_name):
             "ms_after": 0.3,
             "radius_um": 100.0,
         },
+        "cmr": {"reference": "global", "operator": "median"},
+        "highpass_filter": {"freq_min": 300.0, "margin_ms": 5.0},
         "n_skip": 30,
         "alpha": 0.15,
         "vmin": -200,
@@ -149,7 +156,7 @@ def plot_drift(diretory, stream_name):
     """ get blocks/experiments and streams info """
     si.set_global_job_kwargs(n_jobs=-1)
 
-    """ drift """
+    """ drift raster"""
     cmap = plt.get_cmap(visualization_drift_params["cmap"])
     norm = Normalize(
         vmin=visualization_drift_params["vmin"],
@@ -167,9 +174,17 @@ def plot_drift(diretory, stream_name):
     ][0]
 
     recording = se.read_openephys(
-        folder_path=diretory, stream_name=spike_stream,
+        folder_path=diretory,
+        stream_name=spike_stream,
     )
-
+    # high-pass filter
+    recording = spre.highpass_filter(
+        recording, **visualization_drift_params["highpass_filter"]
+    )
+    # common reference
+    recording = spre.common_reference(
+        recording, **visualization_drift_params["cmr"]
+    )
     """ Here we use the node pipeline implementation """
     peak_detector_node = DetectPeakLocallyExclusive(
         recording, **visualization_drift_params["detection"]
@@ -231,3 +246,82 @@ def plot_drift(diretory, stream_name):
     ax_drift.set_title(stream_name)
 
     return fig_drift
+
+
+def plot_timealign(streams, overwrite=False):
+    """
+    Plot the timealignment of the data
+
+    Parameters
+    ----------
+    data : streams
+        The recording streams to plot
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        Figure object containing the plot
+    """
+
+    fig = Figure(figsize=(10, 4))
+    ax = fig.subplots(1, 2)
+
+    sync_line = 1
+    main_name = "ProbeA-AP"
+
+    stream_time = []
+    stream_names = []
+    """extract time of data streams"""
+    for stream_ind in range(len(streams.continuous)):
+        stream_time.append(streams.continuous[stream_ind].timestamps)
+        stream_names.append(
+            streams.continuous[stream_ind].metadata["stream_name"]
+        )
+
+    """plot time alignment"""
+    for stream_ind in range(len(stream_time)):
+        ax[0].plot(stream_time[stream_ind], label=stream_names[stream_ind])
+    ax[0].legend()
+    ax[0].set_title("Time Alignment_original")
+    ax[0].set_xlabel("Samples")
+    ax[0].set_ylabel("Time (s)")
+
+    """plot time alignment after alignment"""
+    ignore_after_time = stream_time[0][-1] - np.min(stream_time[0])
+
+    stream_num = len(streams.continuous)
+    for stream_ind in range(stream_num):
+        stream_name = streams.continuous[stream_ind].metadata["stream_name"]
+        processor_id = streams.continuous[stream_ind].metadata[
+            "source_node_id"
+        ]
+        if stream_name == main_name:
+            main_or_not = True
+        else:
+            main_or_not = False
+
+        streams.add_sync_line(
+            sync_line,  # TTL line number
+            processor_id,  # processor ID
+            stream_name,  # stream
+            main=main_or_not,  # set as the main stream
+            ignore_intervals=[(ignore_after_time * 30000, np.inf)],
+        )
+
+    streams.compute_global_timestamps(overwrite=overwrite)
+    """extract time of data streams"""
+    stream_time_align = []
+    for stream_ind in range(len(streams.continuous)):
+        stream_time_align.append(streams.continuous[stream_ind].timestamps)
+
+    """plot time alignment"""
+    for stream_ind in range(len(stream_time)):
+        ax[1].plot(
+            stream_time_align[stream_ind], label=stream_names[stream_ind]
+        )
+    ax[1].legend()
+    ax[1].set_title("Time Alignment_aligned")
+    ax[1].set_xlabel("Samples")
+    ax[1].set_ylabel("Time (s)")
+
+    return fig

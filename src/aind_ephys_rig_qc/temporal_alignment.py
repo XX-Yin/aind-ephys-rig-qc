@@ -6,6 +6,9 @@ import json
 import os
 import sys
 
+import numpy as np
+from harp.clock import align_timestamps_to_anchor_points
+from matplotlib.figure import Figure
 from open_ephys.analysis import Session
 from harp.clock import decode_harp_clock, align_timestamps_to_anchor_points
 from matplotlib.figure import Figure
@@ -255,6 +258,13 @@ def align_timestamps(
         The type of alignment to perform
         Option 1: 'local' (default)
         Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
+    local_sync_line : int
+        The TTL line number for local alignment
+        (assumed to be the same across streams)
+    harp_sync_line : int
+        The NIDAQ TTL line number for Harp alignment
+    main_stream_index : int
+        The index of the main stream for alignment
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
     qc_report : PdfReport

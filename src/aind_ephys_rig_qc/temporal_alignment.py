@@ -6,10 +6,10 @@ import json
 import os
 import sys
 
+import numpy as np
+from matplotlib.figure import Figure
 from open_ephys.analysis import Session
 from harp.clock import decode_harp_clock, align_timestamps_to_anchor_points
-from matplotlib.figure import Figure
-import numpy as np
 import spikeinterface.extractors as se
 from scipy.stats import chisquare
 import matplotlib.pyplot as plt
@@ -255,6 +255,13 @@ def align_timestamps(
         The type of alignment to perform
         Option 1: 'local' (default)
         Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
+    local_sync_line : int
+        The TTL line number for local alignment
+        (assumed to be the same across streams)
+    harp_sync_line : int
+        The NIDAQ TTL line number for Harp alignment
+    main_stream_index : int
+        The index of the main stream for alignment
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
     qc_report : PdfReport
@@ -363,7 +370,8 @@ def align_timestamps(
                     pdf.write(
                         h=12,
                         text=(
-                            f"Temporal alignment of Record Node {curr_record_node},"
+                            "Temporal alignment" +
+                            f"of Record Node {curr_record_node},"
                             f"Experiment {current_experiment_index},"
                             f"Recording {current_recording_index}"
                         ),

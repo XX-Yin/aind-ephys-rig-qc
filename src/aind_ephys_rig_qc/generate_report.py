@@ -65,7 +65,7 @@ def generate_qc_report(
     pdf.add_page()
     pdf.set_font("Helvetica", "B", size=12)
     pdf.set_y(30)
-    pdf.write(h=12, text=f"Overview of recordings in:")
+    pdf.write(h=12, text="Overview of recordings in:")
     pdf.set_y(40)
     pdf.set_font("Helvetica", size=10)
     pdf.write(h=8, text=f"{directory}")
@@ -91,7 +91,8 @@ def generate_qc_report(
             + "And decide if original timestamps should be overwritten."
         )
         overwrite = input(
-            "Overwrite original timestamps (check 'temporal_alignment.png')? (y/n): "
+            "Overwrite original timestamps (check 'temporal_alignment.png')? "
+            "(y/n): "
         )
 
         if overwrite == "y":

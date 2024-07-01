@@ -56,7 +56,7 @@ class PdfReport(FPDF):
         if platform.system() == "Linux":
             plt.rcParams["font.sans-serif"] = ["Nimbus Sans"]
         else:
-            plt.rcParams["font.sans-serif"] = ["Arial"]
+            plt.rcParams["font.sans-serif"] = ["Arial"] # pragma: no cover
 
     def embed_figure(self, fig, width=190):
         """

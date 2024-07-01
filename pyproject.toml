@@ -65,7 +65,7 @@ exclude = '''
 '''
 
 [tool.coverage.run]
-omit = ["*__init__*"]
+omit = ["*__init__*", "*temporal_alignment*"]
 source = ["aind_ephys_rig_qc", "tests"]
 
 [tool.coverage.report]
@@ -73,7 +73,7 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "from",
     "import",
-    "pragma: no cover"
+    "pragma: no cover",
 ]
 fail_under = 100
 

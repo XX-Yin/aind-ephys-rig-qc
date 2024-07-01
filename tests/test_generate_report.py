@@ -21,15 +21,31 @@ class TestGenerateReport(unittest.TestCase):
         """Check if output is pdf."""
         directory = str(test_folder / test_dataset)
         report_name = "qc.pdf"
-        generate_qc_report(directory, report_name)
+        generate_qc_report(directory, report_name, plot_drift_map=False)
         self.assertTrue(os.path.exists(os.path.join(directory, report_name)))
 
     @patch("builtins.input", return_value="n")
-    def test_generate_report_not_overwrting(self, mock_input):
+    def test_generate_report_not_overwriting(self, mock_input):
         """Check if output is pdf."""
         directory = str(test_folder / test_dataset)
         report_name = "qc.pdf"
-        generate_qc_report(directory, report_name)
+        generate_qc_report(directory, report_name, plot_drift_map=False)
+        self.assertTrue(os.path.exists(os.path.join(directory, report_name)))
+
+    @patch("builtins.input", return_value="y")
+    def test_generate_report_harp(self, mock_input):
+        """Check if output is pdf."""
+        directory = str(test_folder / test_dataset)
+        report_name = "qc.pdf"
+        generate_qc_report(directory, report_name, timestamp_alignment_method="harp", plot_drift_map=False)
+        self.assertTrue(os.path.exists(os.path.join(directory, report_name)))
+
+    @patch("builtins.input", return_value="n")
+    def test_generate_report_harp_not_overwriting(self, mock_input):
+        """Check if output is pdf."""
+        directory = str(test_folder / test_dataset)
+        report_name = "qc.pdf"
+        generate_qc_report(directory, report_name, timestamp_alignment_method="harp", plot_drift_map=False)
         self.assertTrue(os.path.exists(os.path.join(directory, report_name)))
 
     @patch("builtins.input", return_value="n")

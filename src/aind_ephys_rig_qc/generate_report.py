@@ -33,6 +33,7 @@ def generate_qc_report(
     timestamp_alignment_method="local",
     original_timestamp_filename="original_timestamps.npy",
     num_chunks=3,
+    plot_drift_map=True
 ):
     """
     Generates a PDF report from an Open Ephys data directory
@@ -55,6 +56,8 @@ def generate_qc_report(
     num_chunks : int
         The number of chunks to split the data into for plotting raw data
         and PSD
+    plot_drift_map : bool
+        Whether to plot the drift map
 
     """
 
@@ -120,7 +123,10 @@ def generate_qc_report(
                 "Please check the alignment of harp timestamps."
                 + "And decide if local timestamps should be overwritten."
             )
-            overwrite = input("Overwrite local timestamps? (y/n): ")
+            overwrite = input(
+                "Overwrite local timestamps (check "
+                "'harp_temporal_alignment.png')? (y/n): "
+            )
 
             if overwrite == "y":
                 replace_original_timestamps(
@@ -132,7 +138,7 @@ def generate_qc_report(
             else:
                 print("Local timestamps was not overwritten.")
 
-    create_qc_plots(pdf, directory, num_chunks=num_chunks)
+    create_qc_plots(pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map)
 
     pdf.output(os.path.join(directory, report_name))
 
@@ -243,7 +249,8 @@ def get_event_info(events, stream_name):
 
 
 def create_qc_plots(
-    pdf, directory, num_chunks=3, raw_chunk_size=1000, psd_chunk_size=10000
+    pdf, directory, num_chunks=3, raw_chunk_size=1000, psd_chunk_size=10000,
+    plot_drift_map=True
 ):
     """
     Create QC plots for an Open Ephys data directory
@@ -338,9 +345,10 @@ def create_qc_plots(
                     )
                 )
 
-                if "Probe" in stream_name and "LFP" not in stream_name:
-                    pdf.set_y(200)
-                    pdf.embed_figure(plot_drift(directory, stream_name))
+                if plot_drift_map:
+                    if "Probe" in stream_name and "LFP" not in stream_name:
+                        pdf.set_y(200)
+                        pdf.embed_figure(plot_drift(directory, stream_name))
 
 
 if __name__ == "__main__":

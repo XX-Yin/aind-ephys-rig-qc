@@ -151,8 +151,9 @@ def search_harp_line(recording, directory, pdf=None):
         for stream_folder_name in stream_folder_names
     ]
 
-    figure, ax = plt.subplots(
-        2, len(lines_to_scan), figsize=(12, 5), layout="tight"
+    ncols = len(lines_to_scan)
+    figure, axs = plt.subplots(
+        nrows=2, ncols=ncols, figsize=(12, 5), layout="tight"
     )
 
     # check if distribution is uniform
@@ -162,6 +163,12 @@ def search_harp_line(recording, directory, pdf=None):
     p_short = np.zeros(len(lines_to_scan))
     bin_size = 100  # bin size in s to count number of events
     for line_ind, curr_line in enumerate(lines_to_scan):
+        if ncols == 1:
+            ax1 = axs[0]
+            ax2 = axs[1]
+        else:
+            ax1 = ax1[0, line_ind]
+            ax2 = ax2[0, line_ind]
         curr_events = events[
             (events.stream_name == nidaq_stream_name)
             & (events.processor_id == nidaq_stream_source_node_id)
@@ -174,15 +181,15 @@ def search_harp_line(recording, directory, pdf=None):
         bins_intervals = np.arange(0, 1.5, 0.1)
         event_intervals = np.diff(ts)
         ts = ts[np.where(event_intervals > 0.1)[0] + 1]
-        ax[0, line_ind].hist(event_intervals, bins=bins_intervals)
-        ax[0, line_ind].set_title(curr_line)
-        ax[0, line_ind].set_xlabel("Inter-event interval (s)")
-        ax[1, line_ind].hist(ts, bins=bins)
-        ax[1, line_ind].set_xlabel("Time in session (s)")
+        ax1.hist(event_intervals, bins=bins_intervals)
+        ax1.set_title(curr_line)
+        ax1.set_xlabel("Inter-event interval (s)")
+        ax2.hist(ts, bins=bins)
+        ax2.set_xlabel("Time in session (s)")
 
         if line_ind == 0:
-            ax[0, line_ind].set_ylabel("Number of events")
-            ax[1, line_ind].set_ylabel("Number of events")
+            ax1.set_ylabel("Number of events")
+            ax2.set_ylabel("Number of events")
 
         # check if distribution is uniform
         ts_count, _ = np.histogram(ts, bins=bins)
@@ -193,12 +200,12 @@ def search_harp_line(recording, directory, pdf=None):
             event_intervals
         )
         if line_ind == 0:
-            ax[1, line_ind].set_title(
+            ax2.set_title(
                 f"p_uniform time {p_value[line_ind]:.2f}"
                 + f"short interval perc {p_short[line_ind]:.2f}"
             )
         else:
-            ax[1, line_ind].set_title(
+            ax2.set_title(
                 f"{p_value[line_ind]:.2f}, {p_short[line_ind]:.2f}"
             )
 

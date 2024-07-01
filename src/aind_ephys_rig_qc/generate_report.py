@@ -33,7 +33,7 @@ def generate_qc_report(
     timestamp_alignment_method="local",
     original_timestamp_filename="original_timestamps.npy",
     num_chunks=3,
-    plot_drift_map=True
+    plot_drift_map=True,
 ):
     """
     Generates a PDF report from an Open Ephys data directory
@@ -138,7 +138,9 @@ def generate_qc_report(
             else:
                 print("Local timestamps was not overwritten.")
 
-    create_qc_plots(pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map)
+    create_qc_plots(
+        pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map
+    )
 
     pdf.output(os.path.join(directory, report_name))
 
@@ -249,8 +251,12 @@ def get_event_info(events, stream_name):
 
 
 def create_qc_plots(
-    pdf, directory, num_chunks=3, raw_chunk_size=1000, psd_chunk_size=10000,
-    plot_drift_map=True
+    pdf,
+    directory,
+    num_chunks=3,
+    raw_chunk_size=1000,
+    psd_chunk_size=10000,
+    plot_drift_map=True,
 ):
     """
     Create QC plots for an Open Ephys data directory

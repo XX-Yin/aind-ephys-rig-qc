@@ -205,9 +205,7 @@ def search_harp_line(recording, directory, pdf=None):
                 + f"short interval perc {p_short[line_ind]:.2f}"
             )
         else:
-            ax2.set_title(
-                f"{p_value[line_ind]:.2f}, {p_short[line_ind]:.2f}"
-            )
+            ax2.set_title(f"{p_value[line_ind]:.2f}, {p_short[line_ind]:.2f}")
 
     # pick the line with even distribution overtime
     # and has short inter-event interval

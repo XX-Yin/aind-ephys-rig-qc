@@ -146,4 +146,5 @@ dmypy.json
 **/*original_timestamps.npy
 **/*qc.pdf
 **/*temporal_alignment.png
+**/*harp_line_search.png
 **/*ephys-rig-QC_output.txt

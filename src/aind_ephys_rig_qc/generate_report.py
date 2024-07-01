@@ -32,6 +32,7 @@ def generate_qc_report(
     report_name="QC.pdf",
     timestamp_alignment_method="local",
     original_timestamp_filename="original_timestamps.npy",
+    num_chunks=3,
 ):
     """
     Generates a PDF report from an Open Ephys data directory
@@ -51,6 +52,9 @@ def generate_qc_report(
         Option 3: 'none' (don't align timestamps)
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
+    num_chunks : int
+        The number of chunks to split the data into for plotting raw data
+        and PSD
 
     """
 
@@ -61,11 +65,15 @@ def generate_qc_report(
     pdf.add_page()
     pdf.set_font("Helvetica", "B", size=12)
     pdf.set_y(30)
-    pdf.write(h=12, text=f"Overview of recordings in {directory}")
+    pdf.write(h=12, text=f"Overview of recordings in:")
+    pdf.set_y(40)
+    pdf.set_font("Helvetica", size=10)
+    pdf.write(h=8, text=f"{directory}")
 
     pdf.set_font("Helvetica", "", size=10)
-    pdf.set_y(45)
-    pdf.embed_table(get_stream_info(directory), width=pdf.epw)
+    pdf.set_y(60)
+    stream_info = get_stream_info(directory)
+    pdf.embed_table(stream_info, width=pdf.epw)
 
     if (
         timestamp_alignment_method == "local"
@@ -82,7 +90,9 @@ def generate_qc_report(
             "Please check the local alignment of the timestamps."
             + "And decide if original timestamps should be overwritten."
         )
-        overwrite = input("Overwrite original timestamps? (y/n): ")
+        overwrite = input(
+            "Overwrite original timestamps (check 'temporal_alignment.png')? (y/n): "
+        )
 
         if overwrite == "y":
             replace_original_timestamps(
@@ -121,13 +131,13 @@ def generate_qc_report(
             else:
                 print("Local timestamps was not overwritten.")
 
-    create_qc_plots(pdf, directory)
+    create_qc_plots(pdf, directory, num_chunks=num_chunks)
 
     pdf.output(os.path.join(directory, report_name))
 
     output_content = output_stream.getvalue()
 
-    outfile = os.path.join(directory, "rigQc_output.txt")
+    outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
 
     with open(outfile, "a") as output_file:
         output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
@@ -162,18 +172,15 @@ def get_stream_info(directory):
     }
 
     for recordnode in session.recordnodes:
-
         current_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
         for recording in recordnode.recordings:
-
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
             for stream in recording.continuous:
-
                 sample_rate = stream.metadata["sample_rate"]
                 data_shape = stream.samples.shape
                 channel_count = data_shape[1]
@@ -234,7 +241,9 @@ def get_event_info(events, stream_name):
     return pd.DataFrame(data=event_info)
 
 
-def create_qc_plots(pdf, directory):
+def create_qc_plots(
+    pdf, directory, num_chunks=3, raw_chunk_size=1000, psd_chunk_size=10000
+):
     """
     Create QC plots for an Open Ephys data directory
     """
@@ -242,25 +251,26 @@ def create_qc_plots(pdf, directory):
     session = Session(directory)
 
     for recordnode in session.recordnodes:
-
         current_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
         for recording in recordnode.recordings:
-
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
             events = recording.events
 
             for stream in recording.continuous:
-
                 duration = (
                     stream.samples.shape[0] / stream.metadata["sample_rate"]
                 )
+                start_frames = np.linspace(
+                    0, stream.samples.shape[0], num_chunks + 1, endpoint=False
+                )[1:]
 
                 stream_name = stream.metadata["stream_name"]
+                sample_rate = stream.metadata["sample_rate"]
 
                 pdf.add_page()
                 pdf.set_font("Helvetica", "B", size=12)
@@ -291,8 +301,7 @@ def create_qc_plots(pdf, directory):
                 pdf.set_y(65)
                 pdf.write(
                     h=10,
-                    text=f"Sample Rate: "
-                    f"{stream.metadata['sample_rate']} Hz",
+                    text=f"Sample Rate: " f"{sample_rate} Hz",
                 )
                 pdf.set_y(70)
                 pdf.write(h=10, text=f"Channels: {stream.samples.shape[1]}")
@@ -309,17 +318,22 @@ def create_qc_plots(pdf, directory):
                 pdf.set_y(120)
                 pdf.embed_figure(
                     plot_raw_data(
-                        stream.samples,
-                        stream.metadata["sample_rate"],
-                        stream_name,
+                        data=stream.samples,
+                        start_frames=start_frames,
+                        sample_rate=sample_rate,
+                        stream_name=stream_name,
+                        chunk_size=raw_chunk_size,
                     )
                 )
 
                 pdf.set_y(200)
                 pdf.embed_figure(
                     plot_power_spectrum(
-                        directory,
-                        stream_name,
+                        data=stream.samples,
+                        start_frames=start_frames,
+                        sample_rate=sample_rate,
+                        stream_name=stream_name,
+                        chunk_size=psd_chunk_size,
                     )
                 )
 
@@ -329,7 +343,6 @@ def create_qc_plots(pdf, directory):
 
 
 if __name__ == "__main__":
-
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")

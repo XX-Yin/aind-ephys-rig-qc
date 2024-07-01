@@ -23,7 +23,9 @@ from spikeinterface.sortingcomponents.peak_localization import (
 )
 
 
-def plot_raw_data(data, sample_rate, stream_name):
+def plot_raw_data(
+    data, start_frames, sample_rate, stream_name, chunk_size=1000
+):
     """
     Plot a snippet of raw data as an image
 
@@ -31,10 +33,14 @@ def plot_raw_data(data, sample_rate, stream_name):
     ----------
     data : np.ndarray
         The data to plot (samples x channels)
+    start_frames : list
+        The starting frame for each chunk
     sample_rate : float
-        The sample rate of the data
+        The sampling rate of the data
     stream_name : str
         The name of the stream
+    chunk_size : int, default: 1000
+        The size of each chunk
 
     Returns
     -------
@@ -43,18 +49,41 @@ def plot_raw_data(data, sample_rate, stream_name):
     """
 
     fig = Figure(figsize=(10, 4))
-    ax = fig.subplots()
 
-    ax.imshow(data[:1000, :].T, aspect="auto", cmap="RdBu")
-    ax.set_title(f"{stream_name} Raw Data")
-    ax.set_xlabel("Samples")
-    ax.set_ylabel("Channels")
+    num_chunks = len(start_frames)
+    end_frames = start_frames + chunk_size
 
+    axs = fig.subplots(ncols=num_chunks)
+
+    fig.suptitle(f"{stream_name} Raw Data")
+    for chunk_ind in range(num_chunks):
+        if num_chunks == 1:
+            ax = axs
+        else:
+            ax = axs[chunk_ind]
+        start_frame = int(start_frames[chunk_ind])
+        end_frame = int(end_frames[chunk_ind])
+        ax.imshow(
+            data[start_frame:end_frame, :].T,
+            aspect="auto",
+            cmap="RdBu",
+            origin="lower",
+        )
+        ax.set_title(f"@ {np.round(start_frame / sample_rate, 2)}s")
+        ax.set_xlabel("Samples")
+        ax.set_ylabel("Channels")
+
+    fig.subplots_adjust(wspace=0.3)
     return fig
 
 
 def plot_power_spectrum(
-    directory, stream_name, num_chunks=3, chunk_size=10000
+    data,
+    start_frames,
+    stream_name,
+    sample_rate,
+    chunk_size=10000,
+    log_xscale=False,
 ):
     """
     Plot the power spectrum of the data
@@ -63,10 +92,16 @@ def plot_power_spectrum(
     ----------
     data : np.ndarray
         The data to plot (samples x channels)
-    sample_rate : float
-        The sample rate of the data
+    start_frames : list
+        The starting frame for each chunk
     stream_name : str
         The name of the stream
+    sample_rate : float
+        The sampling rate of the data
+    chunk_size : int, default: 10000
+        The size of each chunk
+    log_xscale : bool, default: False
+        Whether to use a log scale for the x-axis
 
     Returns
     -------
@@ -74,45 +109,51 @@ def plot_power_spectrum(
         Figure object containing the plot
     """
     fig = Figure(figsize=(10, 4))
-    stream_names, _ = se.get_neo_streams("openephys", directory)
-    target_stream = [
-        curr_stream_name
-        for curr_stream_name in stream_names
-        if stream_name in curr_stream_name
-    ][0]
 
-    recording = se.read_openephys(
-        folder_path=directory,
-        stream_name=target_stream,
+    num_chunks = len(start_frames)
+    axs = fig.subplots(
+        nrows=2,
+        ncols=num_chunks,
+        gridspec_kw={"height_ratios": [2, 1]},
+        sharex=True,
     )
 
-    ax = fig.subplots(
-        2, num_chunks, gridspec_kw={"height_ratios": [2, 1]}, sharex=True
-    )
-    sample_rate = recording.get_sampling_frequency()
-    subsets = si.get_random_data_chunks(
-        recording,
-        num_chunks_per_segment=num_chunks,
-        chunk_size=chunk_size,
-        concatenated=False,
-    )
+    fig.suptitle(f"{stream_name} PSD")
     for chunk_ind in range(num_chunks):
-        subset = subsets[chunk_ind]
+        if num_chunks == 1:
+            ax1 = axs[0]
+            ax2 = axs[1]
+        else:
+            ax1 = axs[0, chunk_ind]
+            ax2 = axs[1, chunk_ind]
+        start_frame = int(start_frames[chunk_ind])
+        end_frame = start_frame + chunk_size
+        subset = data[start_frame:end_frame]
         p_channel = []
         for i in range(subset.shape[1]):
             f, p = welch(subset[:, i], fs=sample_rate)
-            ax[1, chunk_ind].plot(f, p)
+            ax2.plot(f, p, color="gray", alpha=0.5)
             p_channel.append(p)
 
         p_channel = np.array(p_channel)
-        extent = [f.min(), f.max(), subset.shape[1] - 1, 0]
-        ax[0, chunk_ind].imshow(
-            p_channel, extent=extent, aspect="auto", cmap="inferno"
+        p_mean = p_channel.mean(axis=0)
+        ax2.plot(f, p_mean, color="k", lw=1)
+
+        extent = [f.min(), f.max(), 0, subset.shape[1] - 1]
+        ax1.imshow(
+            p_channel,
+            extent=extent,
+            aspect="auto",
+            cmap="inferno",
+            origin="lower",
         )
-        ax[0, chunk_ind].set_ylabel("Channels")
-        ax[0, chunk_ind].set_title(f"{stream_name} PSD")
-        ax[1, chunk_ind].set_xlabel("Frequency")
-        ax[1, chunk_ind].set_ylabel("Power")
+        ax1.set_ylabel("Channels")
+        ax2.set_xlabel("Frequency")
+        ax2.set_ylabel("Power")
+        if log_xscale:
+            ax1.set_xscale("log")
+            ax2.set_xscale("log")
+    fig.subplots_adjust(wspace=0.3)
 
     return fig
 
@@ -213,10 +254,14 @@ def plot_drift(diretory, stream_name):
     y_locs = recording.get_channel_locations()[:, 1]
     ylim = [np.min(y_locs), np.max(y_locs)]
 
-    fig_drift, axs_drift = plt.subplots(
+    fig = Figure(figsize=visualization_drift_params["figsize"])
+    axs_drift = fig.subplots(
         ncols=recording.get_num_segments(),
-        figsize=visualization_drift_params["figsize"],
     )
+    # for testing purposes
+    if recording.get_total_duration() < 3:
+        visualization_drift_params["n_skip"] = 1
+        alpha = 0.5
     for segment_index in range(recording.get_num_segments()):
         segment_mask = peaks["segment_index"] == segment_index
         x = peaks[segment_mask]["sample_index"] / recording.sampling_frequency
@@ -243,9 +288,11 @@ def plot_drift(diretory, stream_name):
     ax_drift.spines["top"].set_visible(False)
     ax_drift.spines["right"].set_visible(False)
 
-    ax_drift.set_title(stream_name)
+    ax_drift.set_title(
+        f"Drift map: {stream_name}\n# detected peaks: {len(peaks)}"
+    )
 
-    return fig_drift
+    return fig
 
 
 def plot_timealign(streams, overwrite=False):

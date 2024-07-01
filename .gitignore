@@ -140,3 +140,10 @@ dmypy.json
 
 # Vscode
 ./vscode
+
+# generated files
+**/*localsync_timestamps.npy
+**/*original_timestamps.npy
+**/*qc.pdf
+**/*temporal_alignment.png
+**/*ephys-rig-QC_output.txt

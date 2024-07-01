@@ -87,7 +87,7 @@ class PdfReport(FPDF):
             The width of the image in the PDF
         """
 
-        DF = df.map(str)  # convert all elements to string
+        DF = df.astype(str)  # convert all elements to string
         DATA = [
             list(DF)
         ] + DF.values.tolist()  # Combine columns and rows in one list

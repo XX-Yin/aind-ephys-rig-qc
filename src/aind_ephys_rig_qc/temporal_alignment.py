@@ -251,7 +251,7 @@ def replace_original_timestamps(
             )
 
 
-def align_timestamps( # noqa
+def align_timestamps(  # noqa
     directory,
     original_timestamp_filename="original_timestamps.npy",
     pdf=None,
@@ -290,13 +290,11 @@ def align_timestamps( # noqa
     main_stream_index = 0
 
     for recordnode in session.recordnodes:
-
         curr_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
         for recording in recordnode.recordings:
-
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
@@ -382,9 +380,9 @@ def align_timestamps( # noqa
                     pdf.write(
                         h=12,
                         text=(
-                            "Temporal alignment" +
-                            f"of Record Node {curr_record_node},"
-                            f"Experiment {current_experiment_index},"
+                            "Temporal alignment "
+                            f"of Record Node {curr_record_node} - "
+                            f"Experiment {current_experiment_index} - "
                             f"Recording {current_recording_index}"
                         ),
                     )
@@ -398,6 +396,7 @@ def align_timestamps( # noqa
                     axes[2, 0].bar(
                         sample_intervals_cat, sample_intervals_counts
                     )
+                    axes[2, 1].axis("off")
 
                 # save the timestamps for continuous in the main stream
                 stream_folder_name = [
@@ -464,9 +463,7 @@ def align_timestamps( # noqa
                 np.save(ts_filename_aligned_local_events, ts_main_events)
 
             for stream_idx, stream in enumerate(recording.continuous):
-
                 if stream_idx != main_stream_index:
-
                     stream_name = stream.metadata["stream_name"]
                     print("Processing stream: ", stream_name)
                     source_node_id = stream.metadata["source_node_id"]
@@ -666,6 +663,8 @@ def align_timestamps( # noqa
                         np.save(ts_filename_aligned_local_events, ts_events)
     fig.savefig(os.path.join(directory, "temporal_alignment.png"))
 
+    return fig
+
 
 def align_timestamps_harp(
     directory,
@@ -696,13 +695,11 @@ def align_timestamps_harp(
     ]
 
     for recordnode in session.recordnodes:
-
         curr_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
         for recording in recordnode.recordings:
-
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
@@ -833,7 +830,6 @@ def align_timestamps_harp(
 
 
 if __name__ == "__main__":
-
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")

@@ -222,6 +222,18 @@ def replace_original_timestamps(
     original_timestamp_filename="original_timestamps.npy",
     sync_timestamp_file="localsync_timestamps.npy",
 ):
+    """
+    Replace the original timestamps with the synchronized timestamps.
+
+    Parameters
+    ----------
+    directory : str
+        The path to the Open Ephys data directory
+    original_timestamp_filename : str
+        The name of the file for archiving the original timestamps
+    sync_timestamp_file : str
+        The name of the file for the synchronized timestamps
+    """
     target_timestamp_files_name = "timestamps.npy"
     for dirpath, dirnames, filenames in os.walk(directory):
         # Check if both files are present in the current directory
@@ -239,7 +251,7 @@ def replace_original_timestamps(
             )
 
 
-def align_timestamps(
+def align_timestamps( # noqa
     directory,
     original_timestamp_filename="original_timestamps.npy",
     pdf=None,

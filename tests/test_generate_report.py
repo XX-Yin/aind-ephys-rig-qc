@@ -4,10 +4,11 @@ import os
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
 from matplotlib.figure import Figure
+
 from aind_ephys_rig_qc.generate_report import generate_qc_report
 from aind_ephys_rig_qc.qc_figures import plot_drift
-
 
 test_folder = Path(__file__).parent / "resources" / "ephys_test_data"
 test_dataset = "691894_2023-10-04_18-03-13_0.5s"

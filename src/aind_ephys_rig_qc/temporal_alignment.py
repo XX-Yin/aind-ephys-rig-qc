@@ -6,14 +6,13 @@ import json
 import os
 import sys
 
+import matplotlib.pyplot as plt
 import numpy as np
+import spikeinterface.extractors as se
+from harp.clock import align_timestamps_to_anchor_points, decode_harp_clock
 from matplotlib.figure import Figure
 from open_ephys.analysis import Session
-from harp.clock import decode_harp_clock, align_timestamps_to_anchor_points
-import spikeinterface.extractors as se
 from scipy.stats import chisquare
-import matplotlib.pyplot as plt
-import shutil
 
 
 def clean_up_sample_chunks(sample_number):
@@ -26,6 +25,7 @@ def clean_up_sample_chunks(sample_number):
     sample_number : np.array
         The sample numbers of the each recording event,
         normally increases by 1
+
     Returns
     -------
     realign : bool
@@ -117,8 +117,12 @@ def search_harp_line(recording, directory, pdf=None):
 
     Parameters
     ----------
-    recording : open-ephys recording object
+    recording : SpikeInterface recording object
         The recording object to search for the Harp clock line
+    directory : str
+        The path to the Open Ephys data directory
+    pdf : PdfReport
+        Report for adding QC figures (optional)
 
     Returns
     -------
@@ -167,8 +171,8 @@ def search_harp_line(recording, directory, pdf=None):
             ax1 = axs[0]
             ax2 = axs[1]
         else:
-            ax1 = ax1[0, line_ind]
-            ax2 = ax2[0, line_ind]
+            ax1 = axs[0, line_ind]
+            ax2 = axs[0, line_ind]
         curr_events = events[
             (events.stream_name == nidaq_stream_name)
             & (events.processor_id == nidaq_stream_source_node_id)
@@ -222,10 +226,11 @@ def search_harp_line(recording, directory, pdf=None):
     return harp_line, nidaq_stream_name, nidaq_stream_source_node_id
 
 
-def replace_original_timestamps(
+def archive_and_replace_original_timestamps(
     directory,
-    original_timestamp_filename="original_timestamps.npy",
-    sync_timestamp_file="localsync_timestamps.npy",
+    new_timestamps,
+    timestamp_filename="timestamps.npy",
+    archive_filename="original_timestamps.npy",
 ):
     """
     Replace the original timestamps with the synchronized timestamps.
@@ -234,31 +239,28 @@ def replace_original_timestamps(
     ----------
     directory : str
         The path to the Open Ephys data directory
-    original_timestamp_filename : str
+    new_timestamps : np.array
+        The new synchronized timestamps
+    timestamp_filename : str
+        The name of the file in which the original timestamps are stored
+    archive_filename : str
         The name of the file for archiving the original timestamps
-    sync_timestamp_file : str
-        The name of the file for the synchronized timestamps
     """
-    target_timestamp_files_name = "timestamps.npy"
-    for dirpath, dirnames, filenames in os.walk(directory):
-        # Check if both files are present in the current directory
-        if (
-            original_timestamp_filename in filenames
-            and sync_timestamp_file in filenames
-        ):
-            shutil.copy(
-                os.path.join(dirpath, sync_timestamp_file),
-                os.path.join(dirpath, target_timestamp_files_name),
-            )
-            print(
-                f"Overwritten {target_timestamp_files_name}"
-                + f"in {dirpath} by {sync_timestamp_file}"
-            )
+    # rename the original timestamps file
+    os.rename(
+        os.path.join(directory, timestamp_filename),
+        os.path.join(directory, archive_filename),
+    )
+
+    # save the new timestamps
+    np.save(os.path.join(directory, timestamp_filename), new_timestamps)
 
 
 def align_timestamps(  # noqa
     directory,
     original_timestamp_filename="original_timestamps.npy",
+    local_sync_line=1,
+    main_stream_index=0,
     pdf=None,
 ):
     """
@@ -268,20 +270,13 @@ def align_timestamps(  # noqa
     ----------
     directory : str
         The path to the Open Ephys data directory
-    align_timestamps_to : str
-        The type of alignment to perform
-        Option 1: 'local' (default)
-        Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
-    local_sync_line : int
-        The TTL line number for local alignment
-        (assumed to be the same across streams)
-    harp_sync_line : int
-        The NIDAQ TTL line number for Harp alignment
-    main_stream_index : int
-        The index of the main stream for alignment
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
-    qc_report : PdfReport
+    local_sync_line : int
+        The line number for the local sync signal on each stream
+    main_stream_index : int
+        The index of the main stream to align to
+    pdf : PdfReport
         Report for adding QC figures (optional)
     """
 
@@ -291,8 +286,6 @@ def align_timestamps(  # noqa
         stream_folder_name.split("#")[-1]
         for stream_folder_name in stream_folder_names
     ]
-    local_sync_line = 1
-    main_stream_index = 0
 
     for recordnode in session.recordnodes:
         curr_record_node = os.path.basename(recordnode.directory).split(
@@ -375,7 +368,7 @@ def align_timestamps(  # noqa
                 )
 
                 print(
-                    f"Total events for {main_stream_name}:"
+                    f"Total events for {main_stream_name}: "
                     + f"{len(main_stream_events)}"
                 )
                 if pdf is not None:
@@ -409,30 +402,15 @@ def align_timestamps(  # noqa
                     for stream_folder_name in stream_folder_names
                     if main_stream_name in stream_folder_name
                 ][0]
-                ts_filename = os.path.join(
-                    recording.directory,
-                    "continuous",
-                    stream_folder_name,
-                    "timestamps.npy",
+
+                archive_and_replace_original_timestamps(
+                    os.path.join(
+                        recording.directory, "continuous", stream_folder_name
+                    ),
+                    new_timestamps=ts_main,
+                    timestamp_filename="timestamps.npy",
+                    archive_filename=original_timestamp_filename,
                 )
-                ts_filename_aligned_local = os.path.join(
-                    recording.directory,
-                    "continuous",
-                    stream_folder_name,
-                    "localsync_timestamps.npy",
-                )
-                ts_filename_original = os.path.join(
-                    recording.directory,
-                    "continuous",
-                    stream_folder_name,
-                    original_timestamp_filename,
-                )
-                # os.rename(ts_filename, ts_filename_original)
-                # copy original timestamps
-                if not os.path.exists(ts_filename_original):
-                    shutil.copy(ts_filename, ts_filename_original)
-                # save aligned timestamps
-                np.save(ts_filename_aligned_local, ts_main)
 
                 # save timestamps for the events in the main stream
                 # mapping to original events sample number
@@ -450,22 +428,12 @@ def align_timestamps(  # noqa
                     main_stream_times,
                 )
 
-                ts_filename_events = os.path.join(
-                    main_stream_events_folder, "timestamps.npy"
+                archive_and_replace_original_timestamps(
+                    main_stream_events_folder,
+                    new_timestamps=ts_main_events,
+                    timestamp_filename="timestamps.npy",
+                    archive_filename=original_timestamp_filename,
                 )
-                ts_filename_aligned_local_events = os.path.join(
-                    main_stream_events_folder, "localsync_timestamps.npy"
-                )
-                ts_filename_original_events = os.path.join(
-                    main_stream_events_folder, original_timestamp_filename
-                )
-                # copy original timestamps
-                if not os.path.exists(ts_filename_original_events):
-                    shutil.copy(
-                        ts_filename_events, ts_filename_original_events
-                    )
-                # save aligned timestamps
-                np.save(ts_filename_aligned_local_events, ts_main_events)
 
             for stream_idx, stream in enumerate(recording.continuous):
                 if stream_idx != main_stream_index:
@@ -585,30 +553,17 @@ def align_timestamps(  # noqa
                             for stream_folder_name in stream_folder_names
                             if stream_name in stream_folder_name
                         ][0]
-                        ts_filename = os.path.join(
-                            recording.directory,
-                            "continuous",
-                            stream_folder_name,
-                            "timestamps.npy",
+
+                        archive_and_replace_original_timestamps(
+                            os.path.join(
+                                recording.directory,
+                                "continuous",
+                                stream_folder_name,
+                            ),
+                            new_timestamps=ts_stream,
+                            timestamp_filename="timestamps.npy",
+                            archive_filename=original_timestamp_filename,
                         )
-                        ts_filename_aligned_local = os.path.join(
-                            recording.directory,
-                            "continuous",
-                            stream_folder_name,
-                            "localsync_timestamps.npy",
-                        )
-                        ts_filename_original = os.path.join(
-                            recording.directory,
-                            "continuous",
-                            stream_folder_name,
-                            original_timestamp_filename,
-                        )
-                        # os.rename(ts_filename, ts_filename_original)
-                        # copy original timestamps
-                        if not os.path.exists(ts_filename_original):
-                            shutil.copy(ts_filename, ts_filename_original)
-                        # save aligned timestamps
-                        np.save(ts_filename_aligned_local, ts_stream)
 
                         if pdf is not None:
                             axes[0, 0].set_title("Original alignment")
@@ -650,22 +605,13 @@ def align_timestamps(  # noqa
                             main_stream_times,
                         )
 
-                        ts_filename_events = os.path.join(
-                            stream_events_folder, "timestamps.npy"
+                        archive_and_replace_original_timestamps(
+                            stream_events_folder,
+                            new_timestamps=ts_events,
+                            timestamp_filename="timestamps.npy",
+                            archive_filename=original_timestamp_filename,
                         )
-                        ts_filename_aligned_local_events = os.path.join(
-                            stream_events_folder, "localsync_timestamps.npy"
-                        )
-                        ts_filename_original_events = os.path.join(
-                            stream_events_folder, original_timestamp_filename
-                        )
-                        # copy original timestamps
-                        if not os.path.exists(ts_filename_original_events):
-                            shutil.copy(
-                                ts_filename_events, ts_filename_original_events
-                            )
-                        # save aligned timestamps
-                        np.save(ts_filename_aligned_local_events, ts_events)
+
     fig.savefig(os.path.join(directory, "temporal_alignment.png"))
 
     return fig
@@ -682,12 +628,6 @@ def align_timestamps_harp(
     ----------
     directory : str
         The path to the Open Ephys data directory
-    align_timestamps_to : str
-        The type of alignment to perform
-        Option 1: 'local' (default)
-        Option 2: 'harp' (extract Harp timestamps from the NIDAQ stream)
-    original_timestamp_filename : str
-        The name of the file for archiving the original timestamps
     qc_report : PdfReport
         Report for adding QC figures (optional)
     """
@@ -783,40 +723,35 @@ def align_timestamps_harp(
                 axes[1, 0].plot(local_stream_times, label=stream_name)
                 axes[1, 1].plot(harp_aligned_ts, label=stream_name)
 
-                # save new timestamps
-                harp_aligned_ts_file = os.path.join(
-                    recording.directory,
-                    "continuous",
-                    stream_folder_name,
-                    "harpsync_timestamps.npy",
+                archive_and_replace_original_timestamps(
+                    os.path.join(
+                        recording.directory, "continuous", stream_folder_name
+                    ),
+                    new_timestamps=harp_aligned_ts,
+                    timestamp_filename="timestamps.npy",
+                    archive_filename="local_timestamps.npy",
                 )
-                np.save(harp_aligned_ts_file, harp_aligned_ts)
+
                 # events timestamps
-                stream_events_time_file = os.path.join(
-                    recording.directory,
-                    "events",
-                    stream_folder_name,
-                    "TTL",
-                    "timestamps.npy",
+                stream_events_times_folder = os.path.join(
+                    recording.directory, "events", stream_folder_name, "TTL"
                 )
-                stream_events_times = np.load(stream_events_time_file)
+                stream_events_times = np.load(
+                    os.path.join(stream_events_times_folder, "timestamps.npy")
+                )
                 stream_events_harp_aligned_ts = (
                     align_timestamps_to_anchor_points(
                         stream_events_times, start_times, harp_times
                     )
                 )
 
-                # save new timestamps
-                harp_aligned_ts_events_file = os.path.join(
-                    recording.directory,
-                    "events",
-                    stream_folder_name,
-                    "TTL",
-                    "harpsync_timestamps.npy",
+                archive_and_replace_original_timestamps(
+                    stream_events_times_folder,
+                    new_timestamps=stream_events_harp_aligned_ts,
+                    timestamp_filename="timestamps.npy",
+                    archive_filename="local_timestamps.npy",
                 )
-                np.save(
-                    harp_aligned_ts_events_file, stream_events_harp_aligned_ts
-                )
+
             axes[0, 0].set_title("Harp time vs local time")
             axes[0, 0].set_xlabel("Local time (s)")
             axes[0, 0].set_ylabel("Harp time (s)")

@@ -2,11 +2,11 @@
 Generates a PDF report from an Open Ephys data directory
 """
 
+import io
 import json
 import os
 import sys
 from datetime import datetime
-import io
 
 import numpy as np
 import pandas as pd
@@ -15,15 +15,13 @@ from open_ephys.analysis import Session
 from aind_ephys_rig_qc import __version__ as package_version
 from aind_ephys_rig_qc.pdf_utils import PdfReport
 from aind_ephys_rig_qc.qc_figures import (
+    plot_drift,
     plot_power_spectrum,
     plot_raw_data,
-    plot_drift,
 )
-
 from aind_ephys_rig_qc.temporal_alignment import (
     align_timestamps,
     align_timestamps_harp,
-    replace_original_timestamps,
 )
 
 
@@ -83,65 +81,27 @@ def generate_qc_report(
         or timestamp_alignment_method == "harp"
     ):
         # perform local alignment first in either case
+        print("Aligning timestamps to local clock...")
         align_timestamps(
             directory,
             original_timestamp_filename=original_timestamp_filename,
             pdf=pdf,
         )
-        # check re-aligned timestamps in temporal_alignment.png
-        print(
-            "Please check the local alignment of the timestamps."
-            + "And decide if original timestamps should be overwritten."
-        )
-        overwrite = input(
-            "Overwrite original timestamps (check 'temporal_alignment.png')? "
-            "(y/n): "
-        )
-
-        if overwrite == "y":
-            replace_original_timestamps(
-                directory,
-                original_timestamp_filename,
-                sync_timestamp_file="localsync_timestamps.npy",
-            )
-            print(
-                "Original timestamps has been overwritten by"
-                + "local-sync timestamps."
-            )
-        else:
-            print("Original timestamps was not overwritten.")
 
         if timestamp_alignment_method == "harp":
             # optionally align to Harp timestamps
+            print("Aligning timestamps to Harp clock...")
             align_timestamps_harp(
                 directory,
                 pdf=pdf,
             )
 
-            # check re-aligned timestamps in temporal_alignment.png
-            print(
-                "Please check the alignment of harp timestamps."
-                + "And decide if local timestamps should be overwritten."
-            )
-            overwrite = input(
-                "Overwrite local timestamps (check "
-                "'harp_temporal_alignment.png')? (y/n): "
-            )
-
-            if overwrite == "y":
-                replace_original_timestamps(
-                    directory,
-                    original_timestamp_filename,
-                    sync_timestamp_file="harpsync_timestamps.npy",
-                )
-                print("Local timestamps has been overwritten by harp clock.")
-            else:
-                print("Local timestamps was not overwritten.")
-
+    print("Creating QC plots...")
     create_qc_plots(
         pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map
     )
 
+    print("Saving QC report...")
     pdf.output(os.path.join(directory, report_name))
 
     output_content = output_stream.getvalue()
@@ -151,6 +111,8 @@ def generate_qc_report(
     with open(outfile, "a") as output_file:
         output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
         output_file.write(output_content)
+
+    print("Finished.")
 
 
 def get_stream_info(directory):
@@ -269,7 +231,7 @@ def create_qc_plots(
             "Record Node "
         )[1]
 
-        for recording in recordnode.recordings:
+        for block_index, recording in enumerate(recordnode.recordings):
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
@@ -352,9 +314,12 @@ def create_qc_plots(
                 )
 
                 if plot_drift_map:
+                    print("Plotting drift map for stream: ", stream_name)
                     if "Probe" in stream_name and "LFP" not in stream_name:
                         pdf.set_y(200)
-                        pdf.embed_figure(plot_drift(directory, stream_name))
+                        pdf.embed_figure(
+                            plot_drift(directory, stream_name, block_index)
+                        )
 
 
 if __name__ == "__main__":
@@ -370,6 +335,10 @@ if __name__ == "__main__":
             parameters = json.load(f)
 
         directory = sys.argv[1]
+
+        print("Running generate_report.py with parameters:")
+        for param in parameters:
+            print(f"  {param}: {parameters[param]}")
 
         if not os.path.exists(directory):
             raise ValueError(f"Data directory {directory} does not exist.")

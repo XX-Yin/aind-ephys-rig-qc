@@ -2,15 +2,14 @@
 Generates figures for checking ephys data quality
 """
 
-from matplotlib.figure import Figure
-from scipy.signal import welch
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.colors import Normalize
-
-import spikeinterface.preprocessing as spre
+import numpy as np
 import spikeinterface as si
 import spikeinterface.extractors as se
+import spikeinterface.preprocessing as spre
+from matplotlib.colors import Normalize
+from matplotlib.figure import Figure
+from scipy.signal import welch
 from spikeinterface.core.node_pipeline import (
     ExtractDenseWaveforms,
     run_node_pipeline,
@@ -152,20 +151,25 @@ def plot_power_spectrum(
     return fig
 
 
-def plot_drift(diretory, stream_name):
+def plot_drift(directory, stream_name, block_index=0):
     """
     Plot the drift of the data by spike localization
 
     Parameters
     ----------
-    openephys_folder : str
-        The path to the OpenEphys data folder
+    directory : str
+        The path to the Open Ephys data folder
+    stream_name : str
+        The name of the stream to plot
+    block_index : int, default: 0
+        The index of the data block (for multi-block streams)
 
     Returns
     -------
     matplotlib.figure.Figure
         Figure object containing the plot
     """
+
     """set parameters for drift visualization"""
     visualization_drift_params = {
         "detection": {
@@ -201,7 +205,7 @@ def plot_drift(diretory, stream_name):
     n_skip = visualization_drift_params["n_skip"]
     alpha = visualization_drift_params["alpha"]
 
-    stream_names, _ = se.get_neo_streams("openephys", diretory)
+    stream_names, _ = se.get_neo_streams("openephys", directory)
     spike_stream = [
         curr_stream_name
         for curr_stream_name in stream_names
@@ -209,8 +213,9 @@ def plot_drift(diretory, stream_name):
     ][0]
 
     recording = se.read_openephys(
-        folder_path=diretory,
+        folder_path=directory,
         stream_name=spike_stream,
+        block_index=block_index,
     )
     # high-pass filter
     recording = spre.highpass_filter(

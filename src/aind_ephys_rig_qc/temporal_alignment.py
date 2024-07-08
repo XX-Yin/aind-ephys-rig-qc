@@ -298,7 +298,7 @@ def align_timestamps(  # noqa
 
             events = recording.events
             main_stream = recording.continuous[main_stream_index]
-            
+
             main_stream_name = main_stream.metadata["stream_name"]
 
             print("Processing stream: ", main_stream_name)
@@ -705,7 +705,7 @@ def align_timestamps_harp(
             # axes[2,0].bar(sample_intervals_cat, sample_intervals_counts)
 
             for stream_ind in range(len(recording.continuous)):
-                
+
                 stream_name = recording.continuous[stream_ind].metadata[
                     "stream_name"
                 ]

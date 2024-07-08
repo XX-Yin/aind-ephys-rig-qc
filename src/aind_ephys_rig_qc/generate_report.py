@@ -108,11 +108,13 @@ def generate_qc_report(
 
     outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
 
+    print("Finished.")
+
     with open(outfile, "a") as output_file:
         output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
         output_file.write(output_content)
 
-    print("Finished.")
+    
 
 
 def get_stream_info(directory):

@@ -172,7 +172,7 @@ def search_harp_line(recording, directory, pdf=None):
             ax2 = axs[1]
         else:
             ax1 = axs[0, line_ind]
-            ax2 = axs[0, line_ind]
+            ax2 = axs[1, line_ind]
         curr_events = events[
             (events.stream_name == nidaq_stream_name)
             & (events.processor_id == nidaq_stream_source_node_id)
@@ -246,11 +246,18 @@ def archive_and_replace_original_timestamps(
     archive_filename : str
         The name of the file for archiving the original timestamps
     """
-    # rename the original timestamps file
-    os.rename(
-        os.path.join(directory, timestamp_filename),
-        os.path.join(directory, archive_filename),
-    )
+
+    if not os.path.exists(os.path.join(directory, archive_filename)):
+        # rename the original timestamps file
+        os.rename(
+            os.path.join(directory, timestamp_filename),
+            os.path.join(directory, archive_filename),
+        )
+    else:
+        print(
+            "Original timestamps already archived. Removed current timestamps."
+        )
+        os.remove(os.path.join(directory, timestamp_filename))
 
     # save the new timestamps
     np.save(os.path.join(directory, timestamp_filename), new_timestamps)
@@ -619,8 +626,7 @@ def align_timestamps(  # noqa
 
 
 def align_timestamps_harp(
-    directory,
-    pdf=None,
+    directory, pdf=None,
 ):
     """
     Aligns timestamps across multiple Open Ephys data streams
@@ -742,10 +748,8 @@ def align_timestamps_harp(
                 stream_events_times = np.load(
                     os.path.join(stream_events_times_folder, "timestamps.npy")
                 )
-                stream_events_harp_aligned_ts = (
-                    align_timestamps_to_anchor_points(
-                        stream_events_times, start_times, harp_times
-                    )
+                stream_events_harp_aligned_ts = align_timestamps_to_anchor_points(
+                    stream_events_times, start_times, harp_times
                 )
 
                 archive_and_replace_original_timestamps(
@@ -778,10 +782,7 @@ if __name__ == "__main__":
         print(" 1. A data directory")
         print(" 2. A JSON parameters file")
     else:
-        with open(
-            sys.argv[2],
-            "r",
-        ) as f:
+        with open(sys.argv[2], "r",) as f:
             parameters = json.load(f)
 
         directory = sys.argv[1]

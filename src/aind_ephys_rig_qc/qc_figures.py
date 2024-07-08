@@ -77,11 +77,7 @@ def plot_raw_data(
 
 
 def plot_power_spectrum(
-    data,
-    start_frames,
-    stream_name,
-    sample_rate,
-    chunk_size=10000,
+    data, start_frames, stream_name, sample_rate, chunk_size=10000,
 ):
     """
     Plot the power spectrum of the data
@@ -254,9 +250,7 @@ def plot_drift(directory, stream_name, block_index=0):
     ylim = [np.min(y_locs), np.max(y_locs)]
 
     fig = Figure(figsize=visualization_drift_params["figsize"])
-    axs_drift = fig.subplots(
-        ncols=recording.get_num_segments(),
-    )
+    axs_drift = fig.subplots(ncols=recording.get_num_segments(),)
     # for testing purposes
     if recording.get_total_duration() < 3:
         visualization_drift_params["n_skip"] = 1

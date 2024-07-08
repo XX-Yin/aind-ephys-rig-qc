@@ -17,7 +17,7 @@ readme = "README.md"
 dynamic = ["version"]
 
 dependencies = [
-    'open-ephys-python-tools',
+    'open-ephys-python-tools>=0.1.9',
     'matplotlib',
     'fpdf2',
     'scipy',

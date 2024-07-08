@@ -256,21 +256,6 @@ def archive_and_replace_original_timestamps(
     np.save(os.path.join(directory, timestamp_filename), new_timestamps)
 
 
-def close_memmap(array):
-    """
-    Closes a memory-mapped file, to allow file renaming
-
-    Parameters
-    ----------
-    array : np.array
-        The memory-mapped array
-    """
-
-    mm = array._mmap
-    if mm is not None:
-        mm.close()
-
-
 def align_timestamps(  # noqa
     directory,
     original_timestamp_filename="original_timestamps.npy",
@@ -295,7 +280,7 @@ def align_timestamps(  # noqa
         Report for adding QC figures (optional)
     """
 
-    session = Session(directory)
+    session = Session(directory, mmap_timestamps=False)
     stream_folder_names, _ = se.get_neo_streams("openephys", directory)
     stream_folder_names = [
         stream_folder_name.split("#")[-1]
@@ -313,7 +298,6 @@ def align_timestamps(  # noqa
 
             events = recording.events
             main_stream = recording.continuous[main_stream_index]
-            close_memmap(main_stream.timestamps)
             
             main_stream_name = main_stream.metadata["stream_name"]
 
@@ -454,7 +438,6 @@ def align_timestamps(  # noqa
 
             for stream_idx, stream in enumerate(recording.continuous):
                 if stream_idx != main_stream_index:
-                    close_memmap(stream.timestamps)
                     stream_name = stream.metadata["stream_name"]
                     print("Processing stream: ", stream_name)
                     source_node_id = stream.metadata["source_node_id"]
@@ -650,7 +633,7 @@ def align_timestamps_harp(
         Report for adding QC figures (optional)
     """
 
-    session = Session(directory)
+    session = Session(directory, mmap_timestamps=False)
     stream_folder_names, _ = se.get_neo_streams("openephys", directory)
     stream_folder_names = [
         stream_folder_name.split("#")[-1]
@@ -742,10 +725,6 @@ def align_timestamps_harp(
 
                 axes[1, 0].plot(local_stream_times, label=stream_name)
                 axes[1, 1].plot(harp_aligned_ts, label=stream_name)
-
-                close_memmap(recording.continuous[
-                    stream_ind
-                ].timestamps)
 
                 archive_and_replace_original_timestamps(
                     os.path.join(

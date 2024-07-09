@@ -2,9 +2,11 @@
 Generates a PDF report from an Open Ephys data directory
 """
 
+import io
 import json
 import os
 import sys
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -12,8 +14,15 @@ from open_ephys.analysis import Session
 
 from aind_ephys_rig_qc import __version__ as package_version
 from aind_ephys_rig_qc.pdf_utils import PdfReport
-from aind_ephys_rig_qc.qc_figures import plot_power_spectrum, plot_raw_data
-from aind_ephys_rig_qc.temporal_alignment import align_timestamps
+from aind_ephys_rig_qc.qc_figures import (
+    plot_drift,
+    plot_power_spectrum,
+    plot_raw_data,
+)
+from aind_ephys_rig_qc.temporal_alignment import (
+    align_timestamps,
+    align_timestamps_harp,
+)
 
 
 def generate_qc_report(
@@ -21,6 +30,8 @@ def generate_qc_report(
     report_name="QC.pdf",
     timestamp_alignment_method="local",
     original_timestamp_filename="original_timestamps.npy",
+    num_chunks=3,
+    plot_drift_map=True,
 ):
     """
     Generates a PDF report from an Open Ephys data directory
@@ -40,43 +51,67 @@ def generate_qc_report(
         Option 3: 'none' (don't align timestamps)
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
+    num_chunks : int
+        The number of chunks to split the data into for plotting raw data
+        and PSD
+    plot_drift_map : bool
+        Whether to plot the drift map
 
     """
+
+    output_stream = io.StringIO()
+    sys.stdout = output_stream
 
     pdf = PdfReport("aind-ephys-rig-qc v" + package_version)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", size=12)
     pdf.set_y(30)
-    pdf.write(h=12, text=f"Overview of recordings in {directory}")
+    pdf.write(h=12, text="Overview of recordings in:")
+    pdf.set_y(40)
+    pdf.set_font("Helvetica", size=10)
+    pdf.write(h=8, text=f"{directory}")
 
     pdf.set_font("Helvetica", "", size=10)
-    pdf.set_y(45)
-    pdf.embed_table(get_stream_info(directory), width=pdf.epw)
+    pdf.set_y(60)
+    stream_info = get_stream_info(directory)
+    pdf.embed_table(stream_info, width=pdf.epw)
 
     if (
         timestamp_alignment_method == "local"
         or timestamp_alignment_method == "harp"
     ):
         # perform local alignment first in either case
+        print("Aligning timestamps to local clock...")
         align_timestamps(
             directory,
-            align_timestamps_to=timestamp_alignment_method,
             original_timestamp_filename=original_timestamp_filename,
             pdf=pdf,
         )
 
         if timestamp_alignment_method == "harp":
             # optionally align to Harp timestamps
-            align_timestamps(
-                directory,
-                align_timestamps_to=timestamp_alignment_method,
-                original_timestamp_filename=original_timestamp_filename,
-                pdf=pdf,
+            print("Aligning timestamps to Harp clock...")
+            align_timestamps_harp(
+                directory, pdf=pdf,
             )
 
-    create_qc_plots(pdf, directory)
+    print("Creating QC plots...")
+    create_qc_plots(
+        pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map
+    )
 
+    print("Saving QC report...")
     pdf.output(os.path.join(directory, report_name))
+
+    output_content = output_stream.getvalue()
+
+    outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
+
+    print("Finished.")
+
+    with open(outfile, "a") as output_file:
+        output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+        output_file.write(output_content)
 
 
 def get_stream_info(directory):
@@ -107,18 +142,15 @@ def get_stream_info(directory):
     }
 
     for recordnode in session.recordnodes:
-
         current_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
         for recording in recordnode.recordings:
-
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
             for stream in recording.continuous:
-
                 sample_rate = stream.metadata["sample_rate"]
                 data_shape = stream.samples.shape
                 channel_count = data_shape[1]
@@ -179,7 +211,14 @@ def get_event_info(events, stream_name):
     return pd.DataFrame(data=event_info)
 
 
-def create_qc_plots(pdf, directory):
+def create_qc_plots(
+    pdf,
+    directory,
+    num_chunks=3,
+    raw_chunk_size=1000,
+    psd_chunk_size=10000,
+    plot_drift_map=True,
+):
     """
     Create QC plots for an Open Ephys data directory
     """
@@ -187,25 +226,26 @@ def create_qc_plots(pdf, directory):
     session = Session(directory)
 
     for recordnode in session.recordnodes:
-
         current_record_node = os.path.basename(recordnode.directory).split(
             "Record Node "
         )[1]
 
-        for recording in recordnode.recordings:
-
+        for block_index, recording in enumerate(recordnode.recordings):
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
             events = recording.events
 
             for stream in recording.continuous:
-
                 duration = (
                     stream.samples.shape[0] / stream.metadata["sample_rate"]
                 )
+                start_frames = np.linspace(
+                    0, stream.samples.shape[0], num_chunks + 1, endpoint=False
+                )[1:]
 
                 stream_name = stream.metadata["stream_name"]
+                sample_rate = stream.metadata["sample_rate"]
 
                 pdf.add_page()
                 pdf.set_font("Helvetica", "B", size=12)
@@ -235,9 +275,7 @@ def create_qc_plots(pdf, directory):
                 pdf.write(h=10, text=f"Duration: {duration} s")
                 pdf.set_y(65)
                 pdf.write(
-                    h=10,
-                    text=f"Sample Rate: "
-                    f"{stream.metadata['sample_rate']} Hz",
+                    h=10, text=f"Sample Rate: " f"{sample_rate} Hz",
                 )
                 pdf.set_y(70)
                 pdf.write(h=10, text=f"Channels: {stream.samples.shape[1]}")
@@ -254,36 +292,48 @@ def create_qc_plots(pdf, directory):
                 pdf.set_y(120)
                 pdf.embed_figure(
                     plot_raw_data(
-                        stream.samples,
-                        stream.metadata["sample_rate"],
-                        stream_name,
+                        data=stream.samples,
+                        start_frames=start_frames,
+                        sample_rate=sample_rate,
+                        stream_name=stream_name,
+                        chunk_size=raw_chunk_size,
                     )
                 )
 
                 pdf.set_y(200)
                 pdf.embed_figure(
                     plot_power_spectrum(
-                        stream.samples,
-                        stream.metadata["sample_rate"],
-                        stream_name,
+                        data=stream.samples,
+                        start_frames=start_frames,
+                        sample_rate=sample_rate,
+                        stream_name=stream_name,
+                        chunk_size=psd_chunk_size,
                     )
                 )
 
+                if plot_drift_map:
+                    print("Plotting drift map for stream: ", stream_name)
+                    if "Probe" in stream_name and "LFP" not in stream_name:
+                        pdf.set_y(200)
+                        pdf.embed_figure(
+                            plot_drift(directory, stream_name, block_index)
+                        )
+
 
 if __name__ == "__main__":
-
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")
         print(" 2. A JSON parameters file")
     else:
-        with open(
-            sys.argv[2],
-            "r",
-        ) as f:
+        with open(sys.argv[2], "r",) as f:
             parameters = json.load(f)
 
         directory = sys.argv[1]
+
+        print("Running generate_report.py with parameters:")
+        for param in parameters:
+            print(f"  {param}: {parameters[param]}")
 
         if not os.path.exists(directory):
             raise ValueError(f"Data directory {directory} does not exist.")

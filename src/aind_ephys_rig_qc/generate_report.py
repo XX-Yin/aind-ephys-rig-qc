@@ -113,6 +113,8 @@ def generate_qc_report(
         output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
         output_file.write(output_content)
 
+    
+
 
 def get_stream_info(directory):
     """

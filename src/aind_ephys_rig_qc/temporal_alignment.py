@@ -477,23 +477,13 @@ def align_timestamps(  # noqa
                             & (events.line == local_sync_line)
                             & (events.state == 0)
                         ]
-                    else:                    if 'PXIe' in stream_name and flip_NIDAQ:
-                        print('Flipping NIDAQ stream...')
-                        # flip the NIDAQ stream if sync line is inverted 
-                        # between NIDAQ and main stream
+                    else:
                         events_for_stream = events[
                             (events.stream_name == stream_name)
                             & (events.processor_id == source_node_id)
                             & (events.line == local_sync_line)
-                            & (events.state == 0)
+                            & (events.state == 1)
                         ]
-                    else:
-                            events_for_stream = events[
-                                (events.stream_name == stream_name)
-                                & (events.processor_id == source_node_id)
-                                & (events.line == local_sync_line)
-                                & (events.state == 1)
-                            ]
 
                     # sort by sample number in case timestamps are not in order
                     events_for_stream = events_for_stream.sort_values(

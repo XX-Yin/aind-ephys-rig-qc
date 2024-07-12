@@ -78,16 +78,16 @@ def clean_up_sample_chunks(sample_number):
             # if can be removed without affecting major stream
             no_overlaps = np.logical_and(
                 (residual_ranges[:, 0] - major_min)
-                * (residual_ranges[:, 1] - major_min)
+                * (residual_ranges[:, 0] - major_max)
                 > 0,
-                (residual_ranges[:, 0] - major_max)
+                (residual_ranges[:, 1] - major_min)
                 * (residual_ranges[:, 1] - major_max)
                 > 0,
             )
             if np.all(no_overlaps):
                 print(
                     "Residual chunks can be removed"
-                    + "without affecting major chunk"
+                    + " without affecting major chunk"
                 )
             else:
                 main_range = np.arange(major_min, major_max)
@@ -101,11 +101,11 @@ def clean_up_sample_chunks(sample_number):
                             ),
                         )
                 overlap_perc = (
-                    1 - (len(main_range) / major_max - major_min)
+                    1 - (len(main_range) / (major_max - major_min))
                 ) * 100
                 print(
                     "Residual chunks cannot be removed without"
-                    + f"affecting major chunk, overlap {overlap_perc}%"
+                    + f" affecting major chunk, overlap {overlap_perc}%"
                 )
 
         return realign, residual_ranges
@@ -266,6 +266,7 @@ def archive_and_replace_original_timestamps(
 def align_timestamps(  # noqa
     directory,
     original_timestamp_filename="original_timestamps.npy",
+    flip_NIDAQ=False,
     local_sync_line=1,
     main_stream_index=0,
     pdf=None,
@@ -311,12 +312,23 @@ def align_timestamps(  # noqa
             print("Processing stream: ", main_stream_name)
             main_stream_source_node_id = main_stream.metadata["source_node_id"]
             main_stream_sample_rate = main_stream.metadata["sample_rate"]
-            main_stream_events = events[
-                (events.stream_name == main_stream_name)
-                & (events.processor_id == main_stream_source_node_id)
-                & (events.line == local_sync_line)
-                & (events.state == 1)
-            ]
+            if 'PXIe' in main_stream_name and flip_NIDAQ:
+                # flip the NIDAQ stream if sync line is inverted between NIDAQ
+                # and main stream
+                print('Flipping NIDAQ stream as main stream...')
+                main_stream_events = events[
+                    (events.stream_name == main_stream_name)
+                    & (events.processor_id == main_stream_source_node_id)
+                    & (events.line == local_sync_line)
+                    & (events.state == 0)
+                ]
+            else:
+                main_stream_events = events[
+                    (events.stream_name == main_stream_name)
+                    & (events.processor_id == main_stream_source_node_id)
+                    & (events.line == local_sync_line)
+                    & (events.state == 1)
+                ]
             # sort by sample number in case timestamps are not in order
             main_stream_events = main_stream_events.sort_values(
                 by="sample_number"
@@ -325,6 +337,7 @@ def align_timestamps(  # noqa
             # detect discontinuities from sample numbers
             # and remove residual chunks to avoid misalignment
             sample_numbers = main_stream.sample_numbers
+            main_stream_start_sample = np.min(sample_numbers)
             sample_intervals = np.diff(sample_numbers)
             sample_intervals_cat, sample_intervals_counts = np.unique(
                 sample_intervals, return_counts=True
@@ -410,7 +423,7 @@ def align_timestamps(  # noqa
                     for stream_folder_name in stream_folder_names
                     if main_stream_name in stream_folder_name
                 ][0]
-
+                print("Updating stream continuous timestamps...")
                 archive_and_replace_original_timestamps(
                     os.path.join(
                         recording.directory, "continuous", stream_folder_name
@@ -435,27 +448,41 @@ def align_timestamps(  # noqa
                     main_stream_event_sample,
                     main_stream_times,
                 )
-
+                print("Updating stream event timestamps...")
                 archive_and_replace_original_timestamps(
                     main_stream_events_folder,
                     new_timestamps=ts_main_events,
                     timestamp_filename="timestamps.npy",
                     archive_filename=original_timestamp_filename,
                 )
+                # archive the original main stream events to recover
+                # after removing first or last event
+                main_stream_events_archive = main_stream_events.copy()
 
             for stream_idx, stream in enumerate(recording.continuous):
                 if stream_idx != main_stream_index:
+                    main_stream_events = main_stream_events_archive.copy()
                     stream_name = stream.metadata["stream_name"]
                     print("Processing stream: ", stream_name)
                     source_node_id = stream.metadata["source_node_id"]
                     sample_rate = stream.metadata["sample_rate"]
-
-                    events_for_stream = events[
-                        (events.stream_name == stream_name)
-                        & (events.processor_id == source_node_id)
-                        & (events.line == local_sync_line)
-                        & (events.state == 1)
-                    ]
+                    if 'PXIe' in stream_name and flip_NIDAQ:
+                        print('Flipping NIDAQ stream...')
+                        # flip the NIDAQ stream if sync line is inverted 
+                        # between NIDAQ and main stream
+                        events_for_stream = events[
+                            (events.stream_name == stream_name)
+                            & (events.processor_id == source_node_id)
+                            & (events.line == local_sync_line)
+                            & (events.state == 0)
+                        ]
+                    else:
+                        events_for_stream = events[
+                            (events.stream_name == stream_name)
+                            & (events.processor_id == source_node_id)
+                            & (events.line == local_sync_line)
+                            & (events.state == 1)
+                        ]
 
                     # sort by sample number in case timestamps are not in order
                     events_for_stream = events_for_stream.sort_values(
@@ -480,7 +507,7 @@ def align_timestamps(  # noqa
                     if not realign:
                         print(
                             "Recording cannot be realigned."
-                            + "Please check quality of recording."
+                            + " Please check quality of recording."
                         )
                         continue
                     else:
@@ -499,6 +526,74 @@ def align_timestamps(  # noqa
                             events_for_stream = events_for_stream.drop(
                                 events_for_stream[condition].index
                             )
+
+                        # remove inconstant events between main and curr stream
+
+                        if len(main_stream_events) != len(events_for_stream):
+                            print(
+                                "Number of events in main and current stream"
+                                + " are not equal"
+                            )
+                            first_main_event_ts = (
+                                main_stream_events.sample_number.values[0]
+                                - main_stream_start_sample
+                            ) / main_stream_sample_rate
+                            first_curr_event_ts = (
+                                events_for_stream.sample_number.values[0]
+                                - sample_numbers[0]
+                            ) / sample_rate
+                            offset = np.abs(
+                                first_main_event_ts - first_curr_event_ts
+                            )
+                            if offset > 0.1:
+                                # bigger than 0.1s so that
+                                # it should not be the same event
+                                print(
+                                    "First event in main and current stream"
+                                    + " are not aligned. Off by "
+                                    + f"{offset:.2f} s"
+                                )
+                                # remove first event from the stream
+                                # with the most events
+                                if len(main_stream_events) > len(
+                                    events_for_stream
+                                ):
+                                    print(
+                                        "Removing first event in main stream"
+                                    )
+                                    main_stream_events = main_stream_events[1:]
+                                else:
+                                    print(
+                                        "Removing first event in"
+                                        + " current stream"
+                                    )
+                                    events_for_stream = events_for_stream[1:]
+                            else:
+                                print(
+                                    "First event in main and current stream"
+                                    " are aligned. Off by "
+                                    f"{offset:.2f} s"
+                                )
+                                # remove last event from the stream
+                                # with the most events
+                                if len(main_stream_events) > len(
+                                    events_for_stream
+                                ):
+                                    print("Removing last event in main stream")
+                                    main_stream_events = main_stream_events[
+                                        :-1
+                                    ]
+                                else:
+                                    print(
+                                        "Removing last event in current stream"
+                                    )
+                                    events_for_stream = events_for_stream[:-1]
+                        else:
+                            print(
+                                "Number of events in main and current stream"
+                                + " are equal"
+                            )
+
                         print(
                             f"Total events for {stream_name}: "
                             + f"{len(events_for_stream)}"
@@ -561,7 +656,7 @@ def align_timestamps(  # noqa
                             for stream_folder_name in stream_folder_names
                             if stream_name in stream_folder_name
                         ][0]
-
+                        print("Updating stream continuous timestamps...")
                         archive_and_replace_original_timestamps(
                             os.path.join(
                                 recording.directory,
@@ -594,7 +689,7 @@ def align_timestamps(  # noqa
                             pdf.embed_figure(fig)
 
                         # save timestamps for the events in the stream
-                        # mapping to original events sample number
+                        # mapping original events sample number
                         # in case timestamps are not in order
                         stream_events_folder = os.path.join(
                             recording.directory,
@@ -612,7 +707,7 @@ def align_timestamps(  # noqa
                             events_for_stream.sample_number.values,
                             main_stream_times,
                         )
-
+                        print("Updating stream event timestamps...")
                         archive_and_replace_original_timestamps(
                             stream_events_folder,
                             new_timestamps=ts_events,

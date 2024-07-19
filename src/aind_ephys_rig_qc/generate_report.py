@@ -32,6 +32,7 @@ def generate_qc_report(
     original_timestamp_filename="original_timestamps.npy",
     num_chunks=3,
     plot_drift_map=True,
+    flip_NIDAQ=False,
 ):
     """
     Generates a PDF report from an Open Ephys data directory
@@ -85,6 +86,7 @@ def generate_qc_report(
         align_timestamps(
             directory,
             original_timestamp_filename=original_timestamp_filename,
+            flip_NIDAQ=flip_NIDAQ,
             pdf=pdf,
         )
 
@@ -102,12 +104,10 @@ def generate_qc_report(
 
     print("Saving QC report...")
     pdf.output(os.path.join(directory, report_name))
-
+    print("Finished.")
     output_content = output_stream.getvalue()
 
     outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
-
-    print("Finished.")
 
     with open(outfile, "a") as output_file:
         output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")

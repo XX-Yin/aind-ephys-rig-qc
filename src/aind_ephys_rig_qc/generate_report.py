@@ -94,7 +94,8 @@ def generate_qc_report(
             # optionally align to Harp timestamps
             print("Aligning timestamps to Harp clock...")
             align_timestamps_harp(
-                directory, pdf=pdf,
+                directory,
+                pdf=pdf,
             )
 
     print("Creating QC plots...")
@@ -275,7 +276,8 @@ def create_qc_plots(
                 pdf.write(h=10, text=f"Duration: {duration} s")
                 pdf.set_y(65)
                 pdf.write(
-                    h=10, text=f"Sample Rate: " f"{sample_rate} Hz",
+                    h=10,
+                    text=f"Sample Rate: " f"{sample_rate} Hz",
                 )
                 pdf.set_y(70)
                 pdf.write(h=10, text=f"Channels: {stream.samples.shape[1]}")
@@ -321,14 +323,18 @@ def create_qc_plots(
 
 
 if __name__ == "__main__":
+    output_stream = io.StringIO()
+    sys.stdout = output_stream
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")
         print(" 2. A JSON parameters file")
     else:
-        with open(sys.argv[2], "r",) as f:
+        with open(
+            sys.argv[2],
+            "r",
+        ) as f:
             parameters = json.load(f)
-
         directory = sys.argv[1]
 
         print("Running generate_report.py with parameters:")
@@ -337,5 +343,15 @@ if __name__ == "__main__":
 
         if not os.path.exists(directory):
             raise ValueError(f"Data directory {directory} does not exist.")
+
+        output_content = output_stream.getvalue()
+
+        outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
+
+        with open(outfile, "a") as output_file:
+            output_file.write(
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n"
+            )
+            output_file.write(output_content)
 
         generate_qc_report(directory, **parameters)

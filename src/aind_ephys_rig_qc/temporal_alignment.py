@@ -214,10 +214,10 @@ def search_harp_line(recording, directory, pdf=None):
     # pick the line with even distribution overtime
     # and has short inter-event interval
     candidate_lines = lines_to_scan[(p_short > 0.5) & (p_value > 0.95)]
-    if len(candidate_lines)>0:
+    if len(candidate_lines) > 0:
         plt.suptitle(f"Harp line(s) {candidate_lines}")
     else:
-        plt.suptitle('Harp line not detected!', color='red')
+        plt.suptitle("Harp line not detected!", color="red")
 
     if pdf is not None:
         pdf.add_page()
@@ -315,10 +315,10 @@ def align_timestamps(  # noqa
             print("Processing stream: ", main_stream_name)
             main_stream_source_node_id = main_stream.metadata["source_node_id"]
             main_stream_sample_rate = main_stream.metadata["sample_rate"]
-            if 'PXIe' in main_stream_name and flip_NIDAQ:
+            if "PXIe" in main_stream_name and flip_NIDAQ:
                 # flip the NIDAQ stream if sync line is inverted between NIDAQ
                 # and main stream
-                print('Flipping NIDAQ stream as main stream...')
+                print("Flipping NIDAQ stream as main stream...")
                 main_stream_events = events[
                     (events.stream_name == main_stream_name)
                     & (events.processor_id == main_stream_source_node_id)
@@ -470,8 +470,8 @@ def align_timestamps(  # noqa
                     print("Processing stream: ", stream_name)
                     source_node_id = stream.metadata["source_node_id"]
                     sample_rate = stream.metadata["sample_rate"]
-                    if 'PXIe' in stream_name and flip_NIDAQ:
-                        print('Flipping NIDAQ stream...')
+                    if "PXIe" in stream_name and flip_NIDAQ:
+                        print("Flipping NIDAQ stream...")
                         # flip the NIDAQ stream if sync line is inverted
                         # between NIDAQ and main stream
                         events_for_stream = events[

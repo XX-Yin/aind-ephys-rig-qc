@@ -327,6 +327,8 @@ if __name__ == "__main__":
     sys.stdout = output_stream
     output_stream = io.StringIO()
     sys.stdout = output_stream
+    output_stream = io.StringIO()
+    sys.stdout = output_stream
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")

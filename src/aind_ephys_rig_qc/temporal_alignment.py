@@ -222,8 +222,8 @@ def search_harp_line(recording, directory, pdf=None):
         pdf.embed_figure(figure)
     harp_line = candidate_lines
 
-    figure.savefig(os.path.join(directory, "harp_line_search.png"))
-    return harp_line, nidaq_stream_name, nidaq_stream_source_node_id
+    # figure.savefig(os.path.join(directory, "harp_line_search.png"))
+    return harp_line, nidaq_stream_name, nidaq_stream_source_node_id, figure
 
 
 def archive_and_replace_original_timestamps(

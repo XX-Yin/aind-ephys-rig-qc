@@ -11,6 +11,8 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 from open_ephys.analysis import Session
+import shutil
+import os
 
 from aind_ephys_rig_qc import __version__ as package_version
 from aind_ephys_rig_qc.pdf_utils import PdfReport
@@ -325,6 +327,8 @@ def create_qc_plots(
 if __name__ == "__main__":
     output_stream = io.StringIO()
     sys.stdout = output_stream
+    output_stream = io.StringIO()
+    sys.stdout = output_stream
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")
@@ -349,9 +353,8 @@ if __name__ == "__main__":
         outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
 
         with open(outfile, "a") as output_file:
-            output_file.write(
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n"
-            )
+            output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
             output_file.write(output_content)
 
+        
         generate_qc_report(directory, **parameters)

@@ -214,7 +214,10 @@ def search_harp_line(recording, directory, pdf=None):
     # pick the line with even distribution overtime
     # and has short inter-event interval
     candidate_lines = lines_to_scan[(p_short > 0.5) & (p_value > 0.95)]
-    plt.suptitle(f"Harp line(s) {candidate_lines}")
+    if len(candidate_lines)>0:
+        plt.suptitle(f"Harp line(s) {candidate_lines}")
+    else:
+        plt.suptitle('Harp line not detected!', color='red')
 
     if pdf is not None:
         pdf.add_page()

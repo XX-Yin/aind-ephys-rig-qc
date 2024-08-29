@@ -531,7 +531,13 @@ def align_timestamps(  # noqa
                                 events_for_stream[condition].index
                             )
 
-                        # remove inconstant events between main and curr stream
+                        # remove inconsistent events between streams
+
+                        print(
+                            f"Before removal: {len(events_for_stream)} "
+                            + f"local times, {len(main_stream_times)} "
+                            + "main times"
+                        )
 
                         if len(main_stream_events) != len(events_for_stream):
                             print(
@@ -540,23 +546,26 @@ def align_timestamps(  # noqa
                             )
                             first_main_event_ts = (
                                 main_stream_events.sample_number.values[0]
-                                - main_stream_start_sample
                             ) / main_stream_sample_rate
+                            print(first_main_event_ts)
                             first_curr_event_ts = (
                                 events_for_stream.sample_number.values[0]
-                                - sample_numbers[0]
                             ) / sample_rate
+                            print(first_curr_event_ts)
                             offset = np.abs(
                                 first_main_event_ts - first_curr_event_ts
                             )
+                            print(offset)
+                            print(
+                                "First event in main and current stream"
+                                + " are not aligned. Off by "
+                                + f"{offset:.2f} s"
+                            )
+
                             if offset > 0.1:
                                 # bigger than 0.1s so that
                                 # it should not be the same event
-                                print(
-                                    "First event in main and current stream"
-                                    + " are not aligned. Off by "
-                                    + f"{offset:.2f} s"
-                                )
+
                                 # remove first event from the stream
                                 # with the most events
                                 if len(main_stream_events) > len(
@@ -566,6 +575,7 @@ def align_timestamps(  # noqa
                                         "Removing first event in main stream"
                                     )
                                     main_stream_events = main_stream_events[1:]
+                                    main_stream_times = main_stream_times[1:]
                                 else:
                                     print(
                                         "Removing first event in"
@@ -573,11 +583,7 @@ def align_timestamps(  # noqa
                                     )
                                     events_for_stream = events_for_stream[1:]
                             else:
-                                print(
-                                    "First event in main and current stream"
-                                    " are aligned. Off by "
-                                    f"{offset:.2f} s"
-                                )
+
                                 # remove last event from the stream
                                 # with the most events
                                 if len(main_stream_events) > len(
@@ -587,6 +593,7 @@ def align_timestamps(  # noqa
                                     main_stream_events = main_stream_events[
                                         :-1
                                     ]
+                                    main_stream_times = main_stream_times[:-1]
                                 else:
                                     print(
                                         "Removing last event in current stream"
@@ -599,8 +606,9 @@ def align_timestamps(  # noqa
                             )
 
                         print(
-                            f"Total events for {stream_name}: "
-                            + f"{len(events_for_stream)}"
+                            f"After removal: {len(events_for_stream)} "
+                            + f"local times, {len(main_stream_times)} "
+                            + "main times"
                         )
 
                         if pdf is not None:

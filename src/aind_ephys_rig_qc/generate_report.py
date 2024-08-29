@@ -60,9 +60,6 @@ def generate_qc_report(
 
     """
 
-    output_stream = io.StringIO()
-    sys.stdout = output_stream
-
     pdf = PdfReport("aind-ephys-rig-qc v" + package_version)
     pdf.add_page()
     pdf.set_font("Helvetica", "B", size=12)
@@ -323,12 +320,9 @@ def create_qc_plots(
 
 
 if __name__ == "__main__":
-    output_stream = io.StringIO()
-    sys.stdout = output_stream
-    output_stream = io.StringIO()
-    sys.stdout = output_stream
-    output_stream = io.StringIO()
-    sys.stdout = output_stream
+    
+    
+
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
         print(" 1. A data directory")
@@ -348,6 +342,8 @@ if __name__ == "__main__":
         if not os.path.exists(directory):
             raise ValueError(f"Data directory {directory} does not exist.")
 
+        output_stream = io.StringIO()
+        sys.stdout = output_stream
         output_content = output_stream.getvalue()
 
         outfile = os.path.join(directory, "ephys-rig-QC_output.txt")

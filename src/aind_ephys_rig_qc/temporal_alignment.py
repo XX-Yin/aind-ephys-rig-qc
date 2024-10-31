@@ -7,13 +7,28 @@ import os
 import sys
 
 import matplotlib.pyplot as plt
+
 import numpy as np
+import pandas as pd
+pd.options.mode.copy_on_write = True
+
 import spikeinterface.extractors as se
 from harp.clock import align_timestamps_to_anchor_points, decode_harp_clock
 from matplotlib.figure import Figure
 from open_ephys.analysis import Session
 from scipy.stats import chisquare
 
+from pathlib import Path
+from dataclasses import dataclass
+
+import datetime
+
+from aind_data_schema.core.quality_control import (QCEvaluation, 
+                                                   QualityControl, 
+                                                   QCMetric, 
+                                                   Stage, 
+                                                   Status, 
+                                                   QCStatus)
 
 def clean_up_sample_chunks(sample_number):
     """
@@ -113,11 +128,11 @@ def clean_up_sample_chunks(sample_number):
 
 def search_harp_line(recording, directory, pdf=None):
     """
-    Search for the Harp clock line in the NIDAQ stream
+    Search for the Harp clock line in an Open Ephys data stream
 
     Parameters
     ----------
-    recording : SpikeInterface recording object
+    recording : Open Ephys recording object
         The recording object to search for the Harp clock line
     directory : str
         The path to the Open Ephys data directory
@@ -266,16 +281,114 @@ def archive_and_replace_original_timestamps(
     np.save(os.path.join(directory, timestamp_filename), new_timestamps)
 
 
+@dataclass
+class Stream():
+    """
+    Dataclass for a stream in an Open Ephys recording
+    """
+    name : str
+    local_anchor_points: np.array
+    local_timestamps: np.array
+    harp_anchor_points: np.array
+    harp_timestamps: np.array
+    continuous_directory : Path
+    events_directory : Path
+
+
+def remove_discontinuities(stream, 
+                           events_for_stream, 
+                           metrics):
+    """
+    Detects discontinuities at the beginning of the recording,
+    and removes residual chunks to avoid misalignment
+
+    Fails if more than one discontinuity is detected
+
+    Parameters
+    ----------
+    stream : Open Ephys continuous object
+        The continuous object to remove discontinuities
+    events_for_stream : DataFrame with events for one stream
+        The events for the stream
+    metrics : List[QCMetric]
+        List of quality control metrics to be appended
+        
+    """
+
+    jumps = np.where(np.diff(stream.sample_numbers) != 1)[0]
+
+    QCMetric(
+        name=f'{}",
+        value=drift_value_with_options,
+        reference="ecephys-drift-map",
+        status_history=[sp],
+        )
+
+    if len(jumps) == 0:
+        print("No jumps detected")
+    elif len(jumps) == 1:
+        print("1 jump detected")
+        first_good_sample = sample_numbers[jumps[0]+1]
+        new_sample_numbers = np.concatenate(
+            (np.arange(first_good_sample-jumps[0]-1, first_good_sample),
+            np.arange(sample_numbers[jumps[0]+1], sample_numbers[-1] + 1))
+        )
+    else:
+        print("Multiple jumps detected, cannot interpolate sample numbers")
+
+    # detect discontinuities from sample numbers
+    # and remove residual chunks to avoid misalignment
+    sample_intervals = np.diff(stream.sample_numbers)
+    sample_intervals_cat, sample_intervals_counts = np.unique(
+        sample_intervals, return_counts=True
+    )
+    sample_intervals_cat = sample_intervals_cat.astype(str).tolist()
+    sample_intervals_counts = sample_intervals_counts / len(
+        sample_intervals
+    )
+    realign, residual_ranges = clean_up_sample_chunks(stream.sample_numbers)
+
+    if not realign:
+        print(
+            "Recording cannot be realigned."
+            + "Please check quality of recording."
+        )
+        return
+    else:
+        # remove events in residual chunks
+        for res_ind in range(len(residual_ranges)):
+            condition = np.logical_and(
+                (
+                    events_for_stream.sample_number
+                    >= residual_ranges[res_ind, 0]
+                ),
+                (
+                    events_for_stream.sample_number
+                    <= residual_ranges[res_ind, 1]
+                ),
+            )
+            events_for_stream = events_for_stream.drop(
+                events_for_stream[condition].index
+            )
+
+
 def align_timestamps(  # noqa
     directory,
     original_timestamp_filename="original_timestamps.npy",
     flip_NIDAQ=False,
     local_sync_line=1,
     main_stream_index=0,
-    pdf=None,
+    evaluations=[]
 ):
     """
     Aligns timestamps across multiple Open Ephys data streams
+
+    Even if timestamps were synchronized during the recording,
+    they can be aligned more precisely offline.
+
+    This method uses a shared sync pulse across all streams
+    (usually a 1 Hz TTL pulse) to align all timestamps
+    to the main stream.
 
     Parameters
     ----------
@@ -283,12 +396,19 @@ def align_timestamps(  # noqa
         The path to the Open Ephys data directory
     original_timestamp_filename : str
         The name of the file for archiving the original timestamps
+        default: "original_timestamps.npy"
+    flip_NIDAQ : bool
+        Whether to flip the direction of the NIDAQ sync line
+        default: False
     local_sync_line : int
         The line number for the local sync signal on each stream
+        default: 1
     main_stream_index : int
         The index of the main stream to align to
-    pdf : PdfReport
-        Report for adding QC figures (optional)
+        default: 0
+    evaluations : List[QCEvaluation]
+        List of quality control evaluations, to be appended
+        default: []
     """
 
     session = Session(directory, mmap_timestamps=False)
@@ -299,15 +419,94 @@ def align_timestamps(  # noqa
     ]
 
     for recordnode in session.recordnodes:
-        curr_record_node = os.path.basename(recordnode.directory).split(
-            "Record Node "
-        )[1]
+        current_record_node = os.path.basename(recordnode.directory)
 
         for recording in recordnode.recordings:
             current_experiment_index = recording.experiment_index
             current_recording_index = recording.recording_index
 
             events = recording.events
+
+            harp_streams = []
+            other_streams = []
+
+            for stream_index, stream in enumerate(recording.continuous):
+
+                stream_folder = f'{stream.metadata['source_node_name']}-' + \
+                    f'{stream.metadata["source_node_id"]}.' + \
+                    f'{stream.metadata["stream_name"]}'
+
+                events_for_stream = events[events.stream_index == stream_index]
+
+                metrics = [ ]
+                remove_discontinuities(stream, 
+                                       events_for_stream,
+                                       metrics)
+
+                if stream_folder.find('NI-DAQ') > -1 and flip_NIDAQ:
+                    state = 0
+                else:
+                    state = 1
+
+                local_anchor_points = events_for_stream[
+                    events_for_stream.line == local_sync_line,
+                    events_for_stream.state == state
+                    ].sample_number.values
+
+                local_timestamps = stream.sample_numbers / stream.metadata['sample_rate']
+
+                harp_line = detect_harp_line(events_for_stream,
+                                 metrics)
+
+                if harp_line > -1: # Harp line detected
+                    # extract Harp events
+        
+                stream_object = Stream(name=stream_folder,
+                                      local_anchor_points=local_anchor_points,
+                                      local_timestamps=local_timestamps,
+                                      harp_anchor_points=harp_anchor_points,
+                                      harp_timestamps=harp_timestamps,
+                                      continuous_directory=Path(directory) / \
+                                        'continuous' / stream_folder,
+                                      events_directory=Path(directory) / \
+                                        'events' / stream_folder / 'TTL')
+                
+                if stream_index == main_stream_index:
+                    main_stream = stream_object
+                else:
+                    other_streams.append(stream_object)
+
+                if metric2 is not None: # has Harp timestamps
+                    harp_streams.append(stream_object)
+
+                evaluations.append(QCEvaluation(
+                    name=f'{stream_folder} sync info',
+                    description="Basic checks on synchronization lines",
+                    modality=Modality.ECEPHYS,
+                    stage=Stage.RAW,
+                    metrics=metrics
+                    notes="",
+                )
+
+            # align to local clock
+            for stream in other_streams:
+                evaluations.append(align_to_local_clock(main_stream, stream))
+
+            # align to Harp clock
+            if len(harp_streams) > 0:
+                for stream in other_streams.extend(main_stream):
+                    if stream not in harp_streams:
+                        evaluations.append(align_to_harp_clock(stream, harp_streams[0]))
+                    else:
+                        evaluations.append(align_to_harp_clock(stream, stream))
+            else:
+                evaluations.append(no_harp_clock_found())
+
+
+
+
+
+
             main_stream = recording.continuous[main_stream_index]
 
             main_stream_name = main_stream.metadata["stream_name"]
@@ -337,42 +536,7 @@ def align_timestamps(  # noqa
                 by="sample_number"
             )
 
-            # detect discontinuities from sample numbers
-            # and remove residual chunks to avoid misalignment
-            sample_numbers = main_stream.sample_numbers
-            main_stream_start_sample = np.min(sample_numbers)
-            main_stream_start_sample = np.min(sample_numbers)
-            sample_intervals = np.diff(sample_numbers)
-            sample_intervals_cat, sample_intervals_counts = np.unique(
-                sample_intervals, return_counts=True
-            )
-            sample_intervals_cat = sample_intervals_cat.astype(str).tolist()
-            sample_intervals_counts = sample_intervals_counts / len(
-                sample_intervals
-            )
-            realign, residual_ranges = clean_up_sample_chunks(sample_numbers)
-            if not realign:
-                print(
-                    "Recording cannot be realigned."
-                    + "Please check quality of recording."
-                )
-                continue
-            else:
-                # remove events in residual chunks
-                for res_ind in range(len(residual_ranges)):
-                    condition = np.logical_and(
-                        (
-                            main_stream_events.sample_number
-                            >= residual_ranges[res_ind, 0]
-                        ),
-                        (
-                            main_stream_events.sample_number
-                            <= residual_ranges[res_ind, 1]
-                        ),
-                    )
-                    main_stream_events = main_stream_events.drop(
-                        main_stream_events[condition].index
-                    )
+            
 
                 main_stream_times = (
                     main_stream_events.sample_number.values

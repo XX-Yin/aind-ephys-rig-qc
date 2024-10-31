@@ -74,6 +74,8 @@ def generate_qc_report(
     stream_info = get_stream_info(directory)
     pdf.embed_table(stream_info, width=pdf.epw)
 
+    evaluations = []
+
     if (
         timestamp_alignment_method == "local"
         or timestamp_alignment_method == "harp"
@@ -84,7 +86,7 @@ def generate_qc_report(
             directory,
             original_timestamp_filename=original_timestamp_filename,
             flip_NIDAQ=flip_NIDAQ,
-            pdf=pdf,
+            evaluations=evaluations
         )
 
         if timestamp_alignment_method == "harp":

@@ -24,7 +24,8 @@ dependencies = [
     'rich',
     'spikeinterface[full]==0.100.7',
     'harp-python @ git+https://github.com/jsiegle/harp-python@decode-clock',
-    'numpy==1.26.4'
+    'numpy==1.26.4',
+    'aind-data-schema'
 ]
 
 [project.optional-dependencies]

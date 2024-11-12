@@ -190,6 +190,9 @@ def plot_drift(directory, stream_name, block_index=0):
         "vmax": 0,
         "cmap": "Greys_r",
         "figsize": [10, 10],
+        "phase_shift": {
+            "margin_ms": 100.0
+        },
     }
 
     """ get blocks/experiments and streams info """
@@ -205,7 +208,7 @@ def plot_drift(directory, stream_name, block_index=0):
     n_skip = visualization_drift_params["n_skip"]
     alpha = visualization_drift_params["alpha"]
 
-    stream_names, _ = se.get_neo_streams("openephys", directory)
+    stream_names, _ = se.get_neo_streams("openephysbinary", directory)
     spike_stream = [
         curr_stream_name
         for curr_stream_name in stream_names
@@ -217,6 +220,9 @@ def plot_drift(directory, stream_name, block_index=0):
         stream_name=spike_stream,
         block_index=block_index,
     )
+    # phase shift
+    recording = spre.phase_shift(recording,
+                                 **visualization_drift_params["phase_shift"])
     # high-pass filter
     recording = spre.highpass_filter(
         recording, **visualization_drift_params["highpass_filter"]

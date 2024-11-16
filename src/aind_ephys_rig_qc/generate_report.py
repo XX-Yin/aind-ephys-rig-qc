@@ -31,6 +31,7 @@ def generate_qc_report(
     timestamp_alignment_method="local",
     original_timestamp_filename="original_timestamps.npy",
     num_chunks=3,
+    psd_chunk_size=150000,
     plot_drift_map=True,
     flip_NIDAQ=False,
 ):
@@ -97,19 +98,12 @@ def generate_qc_report(
 
     print("Creating QC plots...")
     create_qc_plots(
-        pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map
+        pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map, psd_chunk_size=psd_chunk_size
     )
 
     print("Saving QC report...")
     pdf.output(os.path.join(directory, report_name))
     print("Finished.")
-    output_content = output_stream.getvalue()
-
-    outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
-
-    with open(outfile, "a") as output_file:
-        output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-        output_file.write(output_content)
 
 
 def get_stream_info(directory):
@@ -214,7 +208,7 @@ def create_qc_plots(
     directory,
     num_chunks=3,
     raw_chunk_size=1000,
-    psd_chunk_size=10000,
+    psd_chunk_size=150000,
     plot_drift_map=True,
 ):
     """
@@ -355,3 +349,10 @@ if __name__ == "__main__":
             output_file.write(output_content)
 
         generate_qc_report(directory, **parameters)
+        output_content = output_stream.getvalue()
+
+        outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
+
+        with open(outfile, "a") as output_file:
+            output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+            output_file.write(output_content)

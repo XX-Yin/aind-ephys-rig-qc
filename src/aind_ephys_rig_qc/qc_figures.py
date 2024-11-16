@@ -220,9 +220,9 @@ def plot_drift(directory, stream_name, block_index=0):
         stream_name=spike_stream,
         block_index=block_index,
     )
-    # phase shift
-    recording = spre.phase_shift(recording,
-                                 **visualization_drift_params["phase_shift"])
+    # # phase shift
+    # recording = spre.phase_shift(recording,
+    #                              **visualization_drift_params["phase_shift"])
     # high-pass filter
     recording = spre.highpass_filter(
         recording, **visualization_drift_params["highpass_filter"]

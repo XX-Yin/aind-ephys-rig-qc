@@ -17,5 +17,5 @@
     "vmax": 0,
     "cmap": "Greys_r",
     "figsize": [10, 10],
-    "phase_shift": null
+    "phase_shift": {"margin_ms": 100.0}
 }

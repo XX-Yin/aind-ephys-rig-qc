@@ -21,6 +21,7 @@ from spikeinterface.sortingcomponents.peak_localization import (
     LocalizeCenterOfMass,
 )
 import json
+from pathlib import Path
 
 
 def plot_raw_data(
@@ -172,7 +173,10 @@ def plot_drift(directory, stream_name, block_index=0):
     """
 
     """set parameters for drift visualization"""
-    visualization_drift_file = "driftmap.json"
+    script_dir = Path(__file__).resolve().parent
+
+    # Path to the JSON file
+    visualization_drift_file = script_dir / "driftmap.json"
     with open(visualization_drift_file, "r") as file:
         visualization_drift_params = json.load(file)
 

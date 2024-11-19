@@ -64,10 +64,9 @@ def generate_qc_report(
     outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
     with open(outfile, "a") as f:
         f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-        f.write('Start processing...' + "\n")
+        f.write("Start processing..." + "\n")
     # Redirect stdout to capture printed output
     output_stream = io.StringIO()
-    original_stdout = sys.stdout  # Save original stdout
     sys.stdout = output_stream
 
     pdf = PdfReport("aind-ephys-rig-qc v" + package_version)
@@ -107,7 +106,11 @@ def generate_qc_report(
 
     print("Creating QC plots...")
     create_qc_plots(
-        pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map, psd_chunk_size=psd_chunk_size
+        pdf,
+        directory,
+        num_chunks=num_chunks,
+        plot_drift_map=plot_drift_map,
+        psd_chunk_size=psd_chunk_size,
     )
 
     print("Saving QC report...")
@@ -116,6 +119,7 @@ def generate_qc_report(
     with open(outfile, "a") as f:
         f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
         f.write(output_stream.getvalue())
+
 
 def get_stream_info(directory):
     """
@@ -325,8 +329,6 @@ def create_qc_plots(
 
 
 if __name__ == "__main__":
-    
-    
 
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
@@ -357,4 +359,3 @@ if __name__ == "__main__":
             output_file.write(output_stream.getvalue())
 
         generate_qc_report(directory, **parameters)
-

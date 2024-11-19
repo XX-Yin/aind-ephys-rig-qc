@@ -340,8 +340,6 @@ def align_timestamps(  # noqa
             # detect discontinuities from sample numbers
             # and remove residual chunks to avoid misalignment
             sample_numbers = main_stream.sample_numbers
-            main_stream_start_sample = np.min(sample_numbers)
-            main_stream_start_sample = np.min(sample_numbers)
             sample_intervals = np.diff(sample_numbers)
             sample_intervals_cat, sample_intervals_counts = np.unique(
                 sample_intervals, return_counts=True

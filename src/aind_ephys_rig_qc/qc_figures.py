@@ -190,9 +190,7 @@ def plot_drift(directory, stream_name, block_index=0):
         "vmax": 0,
         "cmap": "Greys_r",
         "figsize": [10, 10],
-        "phase_shift": {
-            "margin_ms": 100.0
-        },
+        "phase_shift": {"margin_ms": 100.0},
     }
 
     """ get blocks/experiments and streams info """

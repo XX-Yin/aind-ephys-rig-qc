@@ -173,7 +173,7 @@ def plot_drift(directory, stream_name, block_index=0):
 
     """set parameters for drift visualization"""
     visualization_drift_file = "driftmap.json"
-    with open(visualization_drift_file, 'r') as file:
+    with open(visualization_drift_file, "r") as file:
         visualization_drift_params = json.load(file)
 
     print(visualization_drift_params)
@@ -205,8 +205,9 @@ def plot_drift(directory, stream_name, block_index=0):
     )
     # phase shift
     if visualization_drift_params["phase_shift"] is not None:
-        recording = spre.phase_shift(recording,
-                                    **visualization_drift_params["phase_shift"])
+        recording = spre.phase_shift(
+            recording, **visualization_drift_params["phase_shift"]
+        )
     # high-pass filter
     recording = spre.highpass_filter(
         recording, **visualization_drift_params["highpass_filter"]

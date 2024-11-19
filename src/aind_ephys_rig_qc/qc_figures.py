@@ -20,6 +20,7 @@ from spikeinterface.sortingcomponents.peak_detection import (
 from spikeinterface.sortingcomponents.peak_localization import (
     LocalizeCenterOfMass,
 )
+import json
 
 
 def plot_raw_data(
@@ -171,27 +172,11 @@ def plot_drift(directory, stream_name, block_index=0):
     """
 
     """set parameters for drift visualization"""
-    visualization_drift_params = {
-        "detection": {
-            "peak_sign": "neg",
-            "detect_threshold": 5,
-            "exclude_sweep_ms": 0.1,
-        },
-        "localization": {
-            "ms_before": 0.1,
-            "ms_after": 0.3,
-            "radius_um": 100.0,
-        },
-        "cmr": {"reference": "global", "operator": "median"},
-        "highpass_filter": {"freq_min": 300.0, "margin_ms": 5.0},
-        "n_skip": 30,
-        "alpha": 0.15,
-        "vmin": -200,
-        "vmax": 0,
-        "cmap": "Greys_r",
-        "figsize": [10, 10],
-        "phase_shift": {"margin_ms": 100.0},
-    }
+    visualization_drift_file = "driftmap.json"
+    with open(visualization_drift_file, 'r') as file:
+        visualization_drift_params = json.load(file)
+
+    print(visualization_drift_params)
 
     """ get blocks/experiments and streams info """
     si.set_global_job_kwargs(n_jobs=-1)
@@ -218,9 +203,10 @@ def plot_drift(directory, stream_name, block_index=0):
         stream_name=spike_stream,
         block_index=block_index,
     )
-    # # phase shift
-    # recording = spre.phase_shift(recording,
-    #                              **visualization_drift_params["phase_shift"])
+    # phase shift
+    if visualization_drift_params["phase_shift"] is not None:
+        recording = spre.phase_shift(recording,
+                                    **visualization_drift_params["phase_shift"])
     # high-pass filter
     recording = spre.highpass_filter(
         recording, **visualization_drift_params["highpass_filter"]

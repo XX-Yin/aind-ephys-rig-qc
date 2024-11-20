@@ -149,7 +149,7 @@ def search_harp_line(recording, directory, pdf=None):
         & (events.state == 1)
     ].line.unique()
 
-    stream_folder_names, _ = se.get_neo_streams("openephys", directory)
+    stream_folder_names, _ = se.get_neo_streams("openephysbinary", directory)
     stream_folder_names = [
         stream_folder_name.split("#")[-1]
         for stream_folder_name in stream_folder_names
@@ -292,7 +292,7 @@ def align_timestamps(  # noqa
     """
 
     session = Session(directory, mmap_timestamps=False)
-    stream_folder_names, _ = se.get_neo_streams("openephys", directory)
+    stream_folder_names, _ = se.get_neo_streams("openephysbinary", directory)
     stream_folder_names = [
         stream_folder_name.split("#")[-1]
         for stream_folder_name in stream_folder_names
@@ -340,8 +340,6 @@ def align_timestamps(  # noqa
             # detect discontinuities from sample numbers
             # and remove residual chunks to avoid misalignment
             sample_numbers = main_stream.sample_numbers
-            main_stream_start_sample = np.min(sample_numbers)
-            main_stream_start_sample = np.min(sample_numbers)
             sample_intervals = np.diff(sample_numbers)
             sample_intervals_cat, sample_intervals_counts = np.unique(
                 sample_intervals, return_counts=True
@@ -748,7 +746,7 @@ def align_timestamps_harp(
     """
 
     session = Session(directory, mmap_timestamps=False)
-    stream_folder_names, _ = se.get_neo_streams("openephys", directory)
+    stream_folder_names, _ = se.get_neo_streams("openephysbinary", directory)
     stream_folder_names = [
         stream_folder_name.split("#")[-1]
         for stream_folder_name in stream_folder_names

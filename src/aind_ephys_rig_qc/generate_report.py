@@ -31,6 +31,7 @@ def generate_qc_report(
     timestamp_alignment_method="local",
     original_timestamp_filename="original_timestamps.npy",
     num_chunks=3,
+    psd_chunk_size=150000,
     plot_drift_map=True,
     flip_NIDAQ=False,
 ):
@@ -59,6 +60,14 @@ def generate_qc_report(
         Whether to plot the drift map
 
     """
+    # Define log file path
+    outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
+    with open(outfile, "a") as f:
+        f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+        f.write("Start processing..." + "\n")
+    # Redirect stdout to capture printed output
+    output_stream = io.StringIO()
+    sys.stdout = output_stream
 
     pdf = PdfReport("aind-ephys-rig-qc v" + package_version)
     pdf.add_page()
@@ -97,19 +106,19 @@ def generate_qc_report(
 
     print("Creating QC plots...")
     create_qc_plots(
-        pdf, directory, num_chunks=num_chunks, plot_drift_map=plot_drift_map
+        pdf,
+        directory,
+        num_chunks=num_chunks,
+        plot_drift_map=plot_drift_map,
+        psd_chunk_size=psd_chunk_size,
     )
 
     print("Saving QC report...")
     pdf.output(os.path.join(directory, report_name))
     print("Finished.")
-    output_content = output_stream.getvalue()
-
-    outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
-
-    with open(outfile, "a") as output_file:
-        output_file.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
-        output_file.write(output_content)
+    with open(outfile, "a") as f:
+        f.write(datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n")
+        f.write(output_stream.getvalue())
 
 
 def get_stream_info(directory):
@@ -214,7 +223,7 @@ def create_qc_plots(
     directory,
     num_chunks=3,
     raw_chunk_size=1000,
-    psd_chunk_size=10000,
+    psd_chunk_size=150000,
     plot_drift_map=True,
 ):
     """
@@ -320,8 +329,6 @@ def create_qc_plots(
 
 
 if __name__ == "__main__":
-    
-    
 
     if len(sys.argv) != 3:
         print("Two input arguments are required:")
@@ -335,6 +342,9 @@ if __name__ == "__main__":
             parameters = json.load(f)
         directory = sys.argv[1]
 
+        output_stream = io.StringIO()
+        sys.stdout = output_stream
+        print(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         print("Running generate_report.py with parameters:")
         for param in parameters:
             print(f"  {param}: {parameters[param]}")
@@ -342,16 +352,10 @@ if __name__ == "__main__":
         if not os.path.exists(directory):
             raise ValueError(f"Data directory {directory} does not exist.")
 
-        output_stream = io.StringIO()
-        sys.stdout = output_stream
-        output_content = output_stream.getvalue()
-
         outfile = os.path.join(directory, "ephys-rig-QC_output.txt")
 
         with open(outfile, "a") as output_file:
-            output_file.write(
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "\n"
-            )
-            output_file.write(output_content)
+            print("Output written to: ", outfile)
+            output_file.write(output_stream.getvalue())
 
         generate_qc_report(directory, **parameters)

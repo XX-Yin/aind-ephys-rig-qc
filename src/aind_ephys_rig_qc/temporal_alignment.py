@@ -111,7 +111,7 @@ def clean_up_sample_chunks(sample_number):
         return realign, residual_ranges
 
 
-def search_harp_line(recording, directory, pdf=None):
+def search_harp_line(recording, directory, pdf=None,current_experiment_index=1):
     """
     Search for the Harp clock line in the NIDAQ stream
 
@@ -222,10 +222,10 @@ def search_harp_line(recording, directory, pdf=None):
     if pdf is not None:
         pdf.add_page()
         pdf.set_y(30)
-        pdf.embed_figure(figure)
+        #pdf.embed_figure(figure)
     harp_line = candidate_lines
 
-    figure.savefig(os.path.join(directory, "harp_line_search.png"))
+    figure.savefig(os.path.join(directory, "harp_line_search_experiment"+str(current_experiment_index+1)+".png"))
     return harp_line, nidaq_stream_name, nidaq_stream_source_node_id
 
 
@@ -698,8 +698,9 @@ def align_timestamps(  # noqa
                             axes[1, 1].set_ylabel("Time diff (ms)")
 
                             pdf.set_y(40)
-                            pdf.embed_figure(fig)
-
+                            #pdf.embed_figure(fig)
+                            
+                            
                         # save timestamps for the events in the stream
                         # mapping original events sample number
                         # in case timestamps are not in order
@@ -727,9 +728,9 @@ def align_timestamps(  # noqa
                             archive_filename=original_timestamp_filename,
                         )
 
-    fig.savefig(os.path.join(directory, "temporal_alignment.png"))
+            fig.savefig(os.path.join(directory, "temporal_alignment_experiment"+str(current_experiment_index+1)+".png"))
 
-    return fig
+    #return fig
 
 
 def align_timestamps_harp(
@@ -768,7 +769,7 @@ def align_timestamps_harp(
 
             # detect harp clock line
             harp_line, nidaq_stream_name, source_node_id = search_harp_line(
-                recording, directory, pdf
+                recording, directory, pdf,current_experiment_index
             )
             if len(harp_line) > 1:
                 print(f"Multiple Harp lines found. Select from {harp_line}")
@@ -881,9 +882,9 @@ def align_timestamps_harp(
 
             if pdf is not None:
                 pdf.set_y(40)
-                pdf.embed_figure(fig)
+                #pdf.embed_figure(fig)
 
-            fig.savefig(os.path.join(directory, "harp_temporal_alignment.png"))
+            fig.savefig(os.path.join(directory, "harp_temporal_alignment"+"_experiment"+str(current_experiment_index+1)+".png"))
 
 
 if __name__ == "__main__":

@@ -1,9 +1,9 @@
 import os
-directory = r'X:\764791\764791_2025-01-16_12-50-11'
+directory = r'X:\769884\769884_2025-01-15_16-12-54'
 
 
 recordingnodes=['Record Node 103']
-experiments=[1,2,3,4,5,6,7,8,9,10]
+experiments=[1,2,3,4,5,6,7,8,9]
 recordings=['recording1']
 types=['continuous','events']
 streams=['Neuropix-PXI-100.ProbeA','Neuropix-PXI-100.ProbeB','NI-DAQmx-102.PXIe-6341']

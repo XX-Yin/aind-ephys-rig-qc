@@ -1,5 +1,5 @@
 import os
-directory = r'X:\769884\769884_2025-01-15_16-12-54'
+directory = r'X:\\795497\\795497_2025-09-19_20-56-47'
 
 
 recordingnodes=['Record Node 103']
